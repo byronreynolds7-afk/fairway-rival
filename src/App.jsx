@@ -124,6 +124,7 @@ select option{background:var(--dark)}
 .hval{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--gold)}
 .hpend{font-size:12px;color:var(--muted);font-style:italic;margin-top:4px}
 .loading{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--deep);font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;color:var(--muted)}
+.notif-drawer{position:fixed;top:60px;right:0;width:340px;max-height:80vh;overflow-y:auto;background:var(--dark);border-left:1px solid var(--border);border-bottom:1px solid var(--border);z-index:200}
 @media(max-width:600px){.page{padding:20px 16px}.topbar{padding:0 16px}.fr{flex-direction:column}.mc{flex-direction:column;align-items:flex-start}.srow{flex-direction:column}.nav .nb{font-size:11px;padding:5px 8px}}
 `;
 
@@ -131,35 +132,35 @@ select option{background:var(--dark)}
 // ROOT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [authUser, setAuthUser]     = useState(undefined); // undefined = loading
-  const [players,  setPlayers]      = useState([]);
-  const [matchups, setMatchups]     = useState([]);
-  const [rounds,   setRounds]       = useState([]);
-  const [season,   setSeason]       = useState(1);
-  const [tab,      setTab]          = useState("dashboard");
+  const [authUser,   setAuthUser]   = useState(undefined);
+  const [players,    setPlayers]    = useState([]);
+  const [matchups,   setMatchups]   = useState([]);
+  const [rounds,     setRounds]     = useState([]);
+  const [challenges, setChallenges] = useState([]);
+  const [notifs,     setNotifs]     = useState([]);
+  const [season,     setSeason]     = useState(1);
+  const [tab,        setTab]        = useState("dashboard");
+  const [showNotifs, setShowNotifs] = useState(false);
 
-  // ── Firebase Auth listener ──
   useEffect(() => {
     return onAuthStateChanged(auth, user => setAuthUser(user || null));
   }, []);
 
-  // ── Firestore real-time listeners (only when logged in) ──
   useEffect(() => {
     if (!authUser) return;
-
     const unsubs = [
-      onSnapshot(collection(db, "players"),  snap => setPlayers(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
-      onSnapshot(collection(db, "matchups"), snap => setMatchups(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
-      onSnapshot(collection(db, "rounds"),   snap => setRounds(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      onSnapshot(collection(db, "players"),    snap => setPlayers(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      onSnapshot(collection(db, "matchups"),   snap => setMatchups(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      onSnapshot(collection(db, "rounds"),     snap => setRounds(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      onSnapshot(collection(db, "challenges"), snap => setChallenges(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+      onSnapshot(collection(db, "notifs"),     snap => setNotifs(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
       onSnapshot(doc(db, "settings", "global"), snap => { if (snap.exists()) setSeason(snap.data().season || 1); }),
     ];
-
     return () => unsubs.forEach(u => u());
   }, [authUser]);
 
-  const state = { players, matchups, rounds, season };
+  const state = { players, matchups, rounds, challenges, notifs, season };
 
-  // ── Firestore write helpers ──
   const fsUpdate = {
     addPlayer:    (data)    => setDoc(doc(db, "players", data.id), data),
     updatePlayer: (id, upd) => updateDoc(doc(db, "players", id), upd),
@@ -168,29 +169,27 @@ export default function App() {
     updateMatchup:(id, upd) => updateDoc(doc(db, "matchups", id), upd),
     deleteMatchup:(id)      => deleteDoc(doc(db, "matchups", id)),
     addRound:     (data)    => setDoc(doc(db, "rounds", data.id), data),
-    deleteRoundsByMatchup: async (matchupId) => {
-      const q = query(collection(db, "rounds"), where("matchupId", "==", matchupId));
-      // Simple approach: filter from local state and delete each
+    deleteRoundsByMatchup: (matchupId) => {
       rounds.filter(r => r.matchupId === matchupId).forEach(r => deleteDoc(doc(db, "rounds", r.id)));
     },
-    setSeason:    (s)       => setDoc(doc(db, "settings", "global"), { season: s }, { merge: true }),
+    setSeason:      (s)    => setDoc(doc(db, "settings", "global"), { season: s }, { merge: true }),
+    addChallenge:   (data) => setDoc(doc(db, "challenges", data.id), data),
+    updateChallenge:(id, upd) => updateDoc(doc(db, "challenges", id), upd),
+    deleteChallenge:(id)   => deleteDoc(doc(db, "challenges", id)),
+    addNotif:       (data) => setDoc(doc(db, "notifs", data.id), data),
+    markNotifRead:  (id)   => updateDoc(doc(db, "notifs", id), { read: true }),
+    deleteNotif:    (id)   => deleteDoc(doc(db, "notifs", id)),
   };
 
   const currentPlayer = authUser ? players.find(p => p.firebaseUid === authUser.uid) || null : null;
 
-  // Loading state
-  if (authUser === undefined) {
-    return <><style>{STYLES}</style><div className="loading">⛳ Loading...</div></>;
-  }
+  if (authUser === undefined) return <><style>{STYLES}</style><div className="loading">⛳ Loading...</div></>;
+  if (!authUser) return <><style>{STYLES}</style><AuthScreen fsUpdate={fsUpdate} playerCount={players.length} /></>;
+  if (authUser && !currentPlayer) return <><style>{STYLES}</style><div className="loading">Loading your profile...</div></>;
 
-  if (!authUser) {
-    return <><style>{STYLES}</style><AuthScreen fsUpdate={fsUpdate} playerCount={players.length} /></>;
-  }
-
-  // Still waiting for player doc to load after login
-  if (authUser && !currentPlayer) {
-    return <><style>{STYLES}</style><div className="loading">Loading your profile...</div></>;
-  }
+  const myNotifs   = notifs.filter(n => n.toPlayerId === currentPlayer.id && !n.read);
+  const myUnread   = myNotifs.length;
+  const myPendingChallenges = challenges.filter(c => c.toPlayerId === currentPlayer.id && c.status === "pending");
 
   const navItems = [
     { key: "dashboard", label: "Dashboard" },
@@ -201,7 +200,9 @@ export default function App() {
     ...(currentPlayer?.isCommissioner ? [{ key: "comm", label: "⚙ Commish" }] : []),
   ];
 
-  const handleSignOut = () => { signOut(auth); setTab("dashboard"); };
+  const handleSignOut = () => { signOut(auth); setTab("dashboard"); setShowNotifs(false); };
+
+  const totalBadge = myUnread + myPendingChallenges.length;
 
   return (
     <>
@@ -211,22 +212,41 @@ export default function App() {
           <div className="logo">FAIR<span>WAY</span> RIVAL</div>
           <nav className="nav">
             {navItems.map(n => (
-              <button key={n.key} className={`nb ${tab === n.key ? "active" : ""}`} onClick={() => setTab(n.key)}>
+              <button key={n.key} className={`nb ${tab === n.key ? "active" : ""}`} onClick={() => { setTab(n.key); setShowNotifs(false); }}>
                 {n.label}
               </button>
             ))}
           </nav>
           <div className="uchip">
+            {/* Bell */}
+            <button onClick={() => setShowNotifs(v => !v)} style={{ position:"relative",background:"none",border:"none",cursor:"pointer",padding:"4px 6px",borderRadius:6,color:totalBadge>0?"var(--gold)":"var(--muted)" }}>
+              <span style={{ fontSize:18 }}>🔔</span>
+              {totalBadge > 0 && (
+                <span style={{ position:"absolute",top:0,right:0,background:"var(--red)",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center" }}>
+                  {totalBadge}
+                </span>
+              )}
+            </button>
             <div className={`avatar ${currentPlayer?.isCommissioner ? "gold" : ""}`}>
               {currentPlayer?.name?.charAt(0).toUpperCase() || "?"}
             </div>
-            <span style={{ fontSize: 13 }}>{currentPlayer?.name}</span>
+            <span style={{ fontSize:13 }}>{currentPlayer?.name}</span>
             <button className="btn bgh bsm" onClick={handleSignOut}>Sign Out</button>
           </div>
         </div>
+
+        {/* Notification drawer */}
+        {showNotifs && (
+          <NotifDrawer
+            state={state} cp={currentPlayer} fsUpdate={fsUpdate}
+            onClose={() => setShowNotifs(false)}
+            onAcceptChallenge={() => { setShowNotifs(false); setTab("matchups"); }}
+          />
+        )}
+
         <div className="page">
           {tab === "dashboard"  && <Dashboard state={state} cp={currentPlayer} setTab={setTab} />}
-          {tab === "matchups"   && <Matchups state={state} cp={currentPlayer} />}
+          {tab === "matchups"   && <Matchups state={state} cp={currentPlayer} fsUpdate={fsUpdate} />}
           {tab === "rounds"     && <PostRound state={state} fsUpdate={fsUpdate} cp={currentPlayer} />}
           {tab === "standings"  && <Standings state={state} />}
           {tab === "h2h"        && <HeadToHead state={state} cp={currentPlayer} />}
@@ -234,6 +254,167 @@ export default function App() {
         </div>
       </div>
     </>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION DRAWER
+// ─────────────────────────────────────────────────────────────────────────────
+function NotifDrawer({ state, cp, fsUpdate, onClose, onAcceptChallenge }) {
+  const { players, challenges, notifs, matchups } = state;
+  const myNotifs   = notifs.filter(n => n.toPlayerId === cp.id && !n.read);
+  const myPending  = challenges.filter(c => c.toPlayerId === cp.id && c.status === "pending");
+
+  const markRead = (id) => fsUpdate.markNotifRead(id);
+
+  const acceptChallenge = async (challenge) => {
+    const m = { id: uid(), season: state.season||1, player1Id: challenge.fromPlayerId, player2Id: challenge.toPlayerId, roundDate: challenge.roundDate||null, status: "pending" };
+    await fsUpdate.addMatchup(m);
+    await fsUpdate.updateChallenge(challenge.id, { status: "accepted" });
+    // notify challenger
+    await fsUpdate.addNotif({ id: uid(), toPlayerId: challenge.fromPlayerId, type: "challenge_accepted", message: `${cp.name} accepted your challenge!`, read: false, createdAt: new Date().toISOString() });
+    onAcceptChallenge();
+  };
+
+  const declineChallenge = async (challenge) => {
+    await fsUpdate.updateChallenge(challenge.id, { status: "declined" });
+    await fsUpdate.addNotif({ id: uid(), toPlayerId: challenge.fromPlayerId, type: "challenge_declined", message: `${cp.name} declined your challenge.`, read: false, createdAt: new Date().toISOString() });
+    onClose();
+  };
+
+  // Round window reminders — matchups where this player hasn't posted yet and date is within 3 days
+  const reminders = matchups.filter(m => {
+    const isMe = m.player1Id === cp.id || m.player2Id === cp.id;
+    const posted = state.rounds?.some(r => r.matchupId === m.id && r.playerId === cp.id);
+    const hasDate = m.roundDate;
+    if (!isMe || posted || !hasDate || m.status === "complete") return false;
+    const daysLeft = Math.ceil((new Date(m.roundDate) - new Date()) / (1000*60*60*24));
+    return daysLeft <= 3 && daysLeft >= -1;
+  });
+
+  const total = myNotifs.length + myPending.length + reminders.length;
+
+  return (
+    <div style={{ position:"fixed",top:60,right:0,width:340,maxHeight:"80vh",overflowY:"auto",background:"var(--dark)",borderLeft:"1px solid var(--border)",borderBottom:"1px solid var(--border)",borderRadius:"0 0 0 12px",zIndex:200,boxShadow:"-4px 4px 24px rgba(0,0,0,0.4)" }}>
+      <div style={{ padding:"16px 20px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:18,letterSpacing:1,color:"var(--cream)" }}>
+          Notifications {total > 0 && <span style={{ color:"var(--red)",fontSize:14 }}>({total})</span>}
+        </div>
+        <button onClick={onClose} style={{ background:"none",border:"none",color:"var(--muted)",fontSize:18,cursor:"pointer" }}>✕</button>
+      </div>
+
+      {total === 0 && <div style={{ padding:32,textAlign:"center",color:"var(--muted)",fontStyle:"italic" }}>All caught up ⛳</div>}
+
+      {/* Pending challenges */}
+      {myPending.map(c => {
+        const from = players.find(p => p.id === c.fromPlayerId);
+        return (
+          <div key={c.id} style={{ padding:"16px 20px",borderBottom:"1px solid var(--border)" }}>
+            <div style={{ fontSize:11,color:"var(--gold)",fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",marginBottom:6 }}>⚔ Challenge Received</div>
+            <div style={{ fontWeight:600,marginBottom:4 }}>{from?.name} is challenging you</div>
+            {c.roundDate && <div style={{ fontSize:12,color:"var(--muted)",marginBottom:4 }}>Window: {new Date(c.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+            {c.message && <div style={{ fontSize:13,color:"var(--cream)",fontStyle:"italic",marginBottom:8 }}>"{c.message}"</div>}
+            <div style={{ display:"flex",gap:8 }}>
+              <button className="btn bp bsm" onClick={() => acceptChallenge(c)}>Accept</button>
+              <button className="btn bd bsm" onClick={() => declineChallenge(c)}>Decline</button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Round window reminders */}
+      {reminders.map(m => {
+        const opp = players.find(p => p.id !== cp.id && (p.id===m.player1Id||p.id===m.player2Id));
+        const daysLeft = Math.ceil((new Date(m.roundDate) - new Date()) / (1000*60*60*24));
+        return (
+          <div key={m.id} style={{ padding:"16px 20px",borderBottom:"1px solid var(--border)" }}>
+            <div style={{ fontSize:11,color:"var(--gl)",fontWeight:700,letterSpacing:0.8,textTransform:"uppercase",marginBottom:6 }}>⏰ Round Reminder</div>
+            <div style={{ fontWeight:600,marginBottom:4 }}>vs {opp?.name}</div>
+            <div style={{ fontSize:13,color:daysLeft<=1?"var(--red)":"var(--muted)" }}>
+              {daysLeft < 0 ? "Window closed — post your round!" : daysLeft === 0 ? "Last day to post your round!" : `${daysLeft} day${daysLeft!==1?"s":""} left in round window`}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* General notifs */}
+      {myNotifs.map(n => (
+        <div key={n.id} style={{ padding:"16px 20px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+          <div>
+            <div style={{ fontSize:13,color:"var(--cream)",marginBottom:2 }}>{n.message}</div>
+            {n.createdAt && <div style={{ fontSize:11,color:"var(--muted)" }}>{new Date(n.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>}
+          </div>
+          <button onClick={() => markRead(n.id)} style={{ background:"none",border:"none",color:"var(--muted)",fontSize:16,cursor:"pointer",flexShrink:0,marginLeft:8 }}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEND CHALLENGE FORM
+// ─────────────────────────────────────────────────────────────────────────────
+function ChallengeForm({ state, cp, fsUpdate, onClose }) {
+  const others = state.players.filter(p => p.id !== cp.id);
+  const [toId, setToId]     = useState(others[0]?.id || "");
+  const [rDate, setRDate]   = useState("");
+  const [msg, setMsg]       = useState("");
+  const [sent, setSent]     = useState(false);
+  const [err, setErr]       = useState("");
+
+  const send = async () => {
+    setErr("");
+    if (!toId) { setErr("Select a player to challenge."); return; }
+    // Check no existing pending challenge between these two
+    const exists = state.challenges.find(c =>
+      c.status === "pending" &&
+      ((c.fromPlayerId===cp.id&&c.toPlayerId===toId)||(c.fromPlayerId===toId&&c.toPlayerId===cp.id))
+    );
+    if (exists) { setErr("A pending challenge already exists with this player."); return; }
+    const challenge = { id: uid(), fromPlayerId: cp.id, toPlayerId: toId, roundDate: rDate||null, message: msg.trim()||null, status: "pending", createdAt: new Date().toISOString() };
+    await fsUpdate.addChallenge(challenge);
+    // Notify the challenged player
+    const toPlayer = state.players.find(p => p.id === toId);
+    await fsUpdate.addNotif({ id: uid(), toPlayerId: toId, type: "challenge_received", message: `${cp.name} challenged you to a matchup!`, read: false, createdAt: new Date().toISOString() });
+    setSent(true);
+  };
+
+  if (sent) return (
+    <div className="card card2" style={{ textAlign:"center",padding:32 }}>
+      <div style={{ fontSize:32,marginBottom:8 }}>⚔</div>
+      <div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:"var(--gl)",marginBottom:8 }}>Challenge Sent!</div>
+      <div className="tm" style={{ marginBottom:16 }}>They'll see it when they log in.</div>
+      <button className="btn bgh bsm" onClick={onClose}>Done</button>
+    </div>
+  );
+
+  return (
+    <div className="card card2">
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:1,color:"var(--cream)" }}>⚔ Send a Challenge</div>
+        <button onClick={onClose} style={{ background:"none",border:"none",color:"var(--muted)",fontSize:18,cursor:"pointer" }}>✕</button>
+      </div>
+      <div className="fg mb16">
+        <div className="lbl">Challenge</div>
+        <select value={toId} onChange={e => setToId(e.target.value)}>
+          {others.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+      <div className="fg mb16">
+        <div className="lbl">Proposed Round Window (optional)</div>
+        <input type="date" value={rDate} onChange={e => setRDate(e.target.value)} />
+      </div>
+      <div className="fg mb16">
+        <div className="lbl">Trash Talk (optional)</div>
+        <input value={msg} onChange={e => setMsg(e.target.value)} placeholder="Think you can keep up?" maxLength={100} />
+      </div>
+      {err && <div className="err">{err}</div>}
+      <div style={{ display:"flex",gap:8,marginTop:16 }}>
+        <button className="btn bp" onClick={send}>Send Challenge</button>
+        <button className="btn bgh" onClick={onClose}>Cancel</button>
+      </div>
+    </div>
   );
 }
 
@@ -439,20 +620,58 @@ function MatchupCard({ m, state }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // MATCHUPS PAGE
 // ─────────────────────────────────────────────────────────────────────────────
-function Matchups({ state, cp }) {
+function Matchups({ state, cp, fsUpdate }) {
+  const [showChallenge, setShowChallenge] = useState(false);
   if (!cp) return null;
   const mine = state.matchups
     .filter(m => m.player1Id === cp.id || m.player2Id === cp.id)
     .sort((a, b) => new Date(b.roundDate || 0) - new Date(a.roundDate || 0));
   const pending = mine.filter(m => m.status !== "complete");
   const done    = mine.filter(m => m.status === "complete");
+
+  // My outgoing pending challenges
+  const myChallenges = state.challenges?.filter(c => c.fromPlayerId === cp.id && c.status === "pending") || [];
+
+  const others = state.players.filter(p => p.id !== cp.id);
+
   return (
     <div>
-      <div className="ptitle">My Matchups</div>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4 }}>
+        <div className="ptitle">My Matchups</div>
+        {others.length > 0 && (
+          <button className="btn bg_ bsm" style={{ marginTop:8 }} onClick={() => setShowChallenge(v => !v)}>
+            ⚔ Challenge
+          </button>
+        )}
+      </div>
       <div className="psub">Your bi-weekly challenge schedule</div>
+
+      {showChallenge && <ChallengeForm state={state} cp={cp} fsUpdate={fsUpdate} onClose={() => setShowChallenge(false)} />}
+
+      {myChallenges.length > 0 && (
+        <div style={{ marginBottom:20 }}>
+          <div className="stitle">Pending Challenges Sent</div>
+          {myChallenges.map(c => {
+            const opp = state.players.find(p => p.id === c.toPlayerId);
+            return (
+              <div className="csm" key={c.id}>
+                <div className="fb">
+                  <div>
+                    <div style={{ fontWeight:600 }}>vs {opp?.name}</div>
+                    <div className="tm">{c.roundDate ? new Date(c.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "No date set"}</div>
+                    {c.message && <div className="tm" style={{ fontStyle:"italic" }}>"{c.message}"</div>}
+                  </div>
+                  <span className="pill po">Awaiting response</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {pending.length > 0 && <><div className="stitle">Active / Upcoming</div>{pending.map(m => <MatchupCard key={m.id} m={m} state={state} />)}</>}
       {done.length    > 0 && <><div className="stitle mt24">History</div>{done.map(m => <MatchupCard key={m.id} m={m} state={state} />)}</>}
-      {mine.length    === 0 && <div className="empty">No matchups yet — ask your commissioner to create one.</div>}
+      {mine.length    === 0 && myChallenges.length === 0 && <div className="empty">No matchups yet. Send a challenge or ask your commissioner to create one.</div>}
     </div>
   );
 }
