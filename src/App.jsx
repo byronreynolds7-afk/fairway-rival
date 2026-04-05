@@ -763,7 +763,7 @@ Rules: Extract every tee row (Black/Blue/White/Gold/Red). For each tee extract f
       <div className="tm" style={{ marginBottom: 12 }}>Upload or snap a photo — AI reads tees, ratings, slopes, and scores automatically.</div>
       <label style={{ display:"inline-flex",alignItems:"center",gap:8,background:"var(--green)",color:"var(--deep)",padding:"10px 18px",borderRadius:"var(--rs)",fontWeight:600,fontSize:14,cursor:"pointer",opacity:scanning?0.6:1 }}>
         {scanning ? "⛳ Reading scorecard..." : "📷 Upload / Take Photo"}
-        <input type="file" accept="image/*" capture="environment" style={{ display:"none" }} onChange={handleFile} disabled={scanning} />
+        <input type="file" accept="image/*"  style={{ display:"none" }} onChange={handleFile} disabled={scanning} />
       </label>
       {preview && !scanning && <div className="mt8"><img src={preview} alt="Scorecard" style={{ maxWidth:"100%",maxHeight:180,borderRadius:8,border:"1px solid var(--border)",objectFit:"contain" }} /></div>}
       {scanResult && !scanning && (
