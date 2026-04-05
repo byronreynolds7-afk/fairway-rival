@@ -700,33 +700,14 @@ function ScorecardScanner({ onFill }) {
       const mediaType = file.type || "image/jpeg";
       setScanning(true);
       try {
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        const resp = await fetch("/api/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 1500,
-            messages: [{ role: "user", content: [
-              { type: "image", source: { type: "base64", media_type: mediaType, data: b64 } },
-              { type: "text", text: `You are reading a golf scorecard image. Extract all data and return ONLY valid JSON with no markdown or explanation.
-Return this exact structure:
-{
-  "course": "Course name",
-  "holes": 9,
-  "tees": [
-    { "color": "Blue", "gender": "M", "front9": { "rating": 35.2, "slope": 118, "par": 36 }, "back9": { "rating": 34.8, "slope": 115, "par": 36 } }
-  ],
-  "players": [
-    { "name": "Player name", "front9holes": [4,5,4,3,5,4,4,3,5], "back9holes": [4,4,5,3,4,5,3,4,4], "front9total": 37, "back9total": 36, "total18": 73 }
-  ]
-}
-Rules: Extract every tee row (Black/Blue/White/Gold/Red). For each tee extract front9 and back9 rating/slope/par. If only 18-hole values visible, divide rating by 2, keep slope same. Extract every player row with name and scores. Use null for unreadable fields. Return ONLY the JSON.` }
-            ]}]
-          })
+          body: JSON.stringify({ imageData: b64, mediaType })
         });
         const data = await resp.json();
-        const text = data.content?.find(b => b.type === "text")?.text || "";
-        const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+        if (!resp.ok) throw new Error(data.error || "Scan failed");
+        const parsed = JSON.parse(data.result);
         setScanResult(parsed);
         if (parsed.players?.length === 1) setSelectedPlayer(parsed.players[0].name);
         if (parsed.tees?.length === 1) setSelectedTee(parsed.tees[0].color);
@@ -763,7 +744,7 @@ Rules: Extract every tee row (Black/Blue/White/Gold/Red). For each tee extract f
       <div className="tm" style={{ marginBottom: 12 }}>Upload or snap a photo — AI reads tees, ratings, slopes, and scores automatically.</div>
       <label style={{ display:"inline-flex",alignItems:"center",gap:8,background:"var(--green)",color:"var(--deep)",padding:"10px 18px",borderRadius:"var(--rs)",fontWeight:600,fontSize:14,cursor:"pointer",opacity:scanning?0.6:1 }}>
         {scanning ? "⛳ Reading scorecard..." : "📷 Upload / Take Photo"}
-        <input type="file" accept="image/*"  style={{ display:"none" }} onChange={handleFile} disabled={scanning} />
+        <input type="file" accept="image/*,image/heic,image/heif" style={{ display:"none" }} onChange={handleFile} disabled={scanning} />
       </label>
       {preview && !scanning && <div className="mt8"><img src={preview} alt="Scorecard" style={{ maxWidth:"100%",maxHeight:180,borderRadius:8,border:"1px solid var(--border)",objectFit:"contain" }} /></div>}
       {scanResult && !scanning && (
