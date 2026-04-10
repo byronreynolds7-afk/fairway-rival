@@ -813,14 +813,14 @@ function ScorecardScanner({ onFill }) {
 // ── Static SoCal + Coachella Valley course database ──────────────────────────
 const SOCAL_COURSES = [
   // ── Orange County ──────────────────────────────────────────────────────────
-  { name:"Coyote Hills Golf Course", location:"Fullerton, CA", tees:[
+  { name:"Coyote Hills Golf Course", front9pars:[4, 4, 3, 5, 4, 3, 4, 5, 4], back9pars:[4, 3, 5, 4, 4, 3, 5, 4, 4], location:"Fullerton, CA", tees:[
     { color:"Black", front9:{rating:36.3,slope:134,par:35}, back9:{rating:35.8,slope:134,par:35} },
     { color:"Blue",  front9:{rating:35.1,slope:127,par:35}, back9:{rating:34.6,slope:127,par:35} },
     { color:"White", front9:{rating:33.8,slope:120,par:35}, back9:{rating:33.3,slope:120,par:35} },
     { color:"Gold",  front9:{rating:32.0,slope:113,par:35}, back9:{rating:31.5,slope:113,par:35} },
     { color:"Red",   front9:{rating:30.5,slope:107,par:35}, back9:{rating:30.0,slope:107,par:35} },
   ]},
-  { name:"Costa Mesa G&CC – Los Lagos", location:"Costa Mesa, CA", tees:[
+  { name:"Costa Mesa G&CC – Los Lagos", front9pars:[4, 5, 3, 4, 4, 5, 3, 4, 4], back9pars:[4, 3, 5, 4, 4, 3, 4, 5, 4], location:"Costa Mesa, CA", tees:[
     { color:"Blue",  front9:{rating:35.6,slope:126,par:36}, back9:{rating:35.6,slope:126,par:36} },
     { color:"White", front9:{rating:34.3,slope:118,par:36}, back9:{rating:34.3,slope:118,par:36} },
     { color:"Red",   front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
@@ -830,7 +830,7 @@ const SOCAL_COURSES = [
     { color:"White", front9:{rating:32.2,slope:110,par:36}, back9:{rating:32.2,slope:110,par:36} },
     { color:"Red",   front9:{rating:30.0,slope:103,par:36}, back9:{rating:30.0,slope:103,par:36} },
   ]},
-  { name:"Mile Square Golf – Championship", location:"Fountain Valley, CA", tees:[
+  { name:"Mile Square Golf – Championship", front9pars:[4, 4, 3, 5, 4, 3, 5, 4, 4], back9pars:[4, 3, 5, 4, 4, 5, 3, 4, 4], location:"Fountain Valley, CA", tees:[
     { color:"Blue",  front9:{rating:35.6,slope:124,par:36}, back9:{rating:35.6,slope:124,par:36} },
     { color:"White", front9:{rating:34.2,slope:118,par:36}, back9:{rating:34.2,slope:118,par:36} },
     { color:"Red",   front9:{rating:32.0,slope:108,par:36}, back9:{rating:32.0,slope:108,par:36} },
@@ -840,7 +840,7 @@ const SOCAL_COURSES = [
     { color:"White", front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
     { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
   ]},
-  { name:"Monarch Beach Golf Links", location:"Dana Point, CA", tees:[
+  { name:"Monarch Beach Golf Links", front9pars:[4, 3, 4, 5, 4, 3, 5, 4, 4], back9pars:[4, 4, 3, 5, 4, 3, 4, 5, 4], location:"Dana Point, CA", tees:[
     { color:"Black", front9:{rating:36.0,slope:130,par:36}, back9:{rating:36.0,slope:130,par:36} },
     { color:"Blue",  front9:{rating:35.0,slope:124,par:36}, back9:{rating:35.0,slope:124,par:36} },
     { color:"White", front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
@@ -861,19 +861,19 @@ const SOCAL_COURSES = [
     { color:"White", front9:{rating:33.5,slope:112,par:35}, back9:{rating:33.5,slope:112,par:35} },
     { color:"Red",   front9:{rating:31.5,slope:104,par:35}, back9:{rating:31.5,slope:104,par:35} },
   ]},
-  { name:"Tustin Ranch Golf Club", location:"Tustin, CA", tees:[
+  { name:"Tustin Ranch Golf Club", front9pars:[4, 5, 3, 4, 4, 3, 5, 4, 4], back9pars:[4, 3, 4, 5, 4, 3, 5, 4, 4], location:"Tustin, CA", tees:[
     { color:"Black", front9:{rating:36.5,slope:132,par:36}, back9:{rating:36.5,slope:132,par:36} },
     { color:"Blue",  front9:{rating:35.5,slope:126,par:36}, back9:{rating:35.5,slope:126,par:36} },
     { color:"White", front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
     { color:"Red",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
   ]},
-  { name:"Strawberry Farms Golf Club", location:"Irvine, CA", tees:[
+  { name:"Strawberry Farms Golf Club", front9pars:[4, 5, 3, 4, 4, 3, 5, 4, 4], back9pars:[4, 3, 4, 5, 4, 3, 4, 5, 4], location:"Irvine, CA", tees:[
     { color:"Black", front9:{rating:36.8,slope:136,par:36}, back9:{rating:36.8,slope:136,par:36} },
     { color:"Blue",  front9:{rating:35.5,slope:128,par:36}, back9:{rating:35.5,slope:128,par:36} },
     { color:"White", front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
     { color:"Red",   front9:{rating:31.8,slope:110,par:36}, back9:{rating:31.8,slope:110,par:36} },
   ]},
-  { name:"Oak Creek Golf Club", location:"Irvine, CA", tees:[
+  { name:"Oak Creek Golf Club", front9pars:[4, 4, 3, 5, 4, 3, 4, 5, 4], back9pars:[4, 3, 5, 4, 4, 3, 5, 4, 4], location:"Irvine, CA", tees:[
     { color:"Black", front9:{rating:36.2,slope:130,par:36}, back9:{rating:36.2,slope:130,par:36} },
     { color:"Blue",  front9:{rating:35.0,slope:124,par:36}, back9:{rating:35.0,slope:124,par:36} },
     { color:"White", front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
@@ -977,7 +977,7 @@ const SOCAL_COURSES = [
     { color:"Red",   front9:{rating:32.2,slope:112,par:36}, back9:{rating:32.2,slope:112,par:36} },
   ]},
   // ── San Diego County ────────────────────────────────────────────────────────
-  { name:"Torrey Pines – South", location:"La Jolla, CA", tees:[
+  { name:"Torrey Pines – South", front9pars:[4, 4, 3, 5, 4, 3, 4, 5, 4], back9pars:[4, 3, 5, 4, 4, 3, 5, 4, 4], location:"La Jolla, CA", tees:[
     { color:"Black", front9:{rating:37.5,slope:144,par:36}, back9:{rating:37.5,slope:144,par:36} },
     { color:"Blue",  front9:{rating:36.5,slope:138,par:36}, back9:{rating:36.5,slope:138,par:36} },
     { color:"White", front9:{rating:35.0,slope:128,par:36}, back9:{rating:35.0,slope:128,par:36} },
@@ -999,7 +999,7 @@ const SOCAL_COURSES = [
     { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
   ]},
   // ── Coachella Valley / Palm Springs ─────────────────────────────────────────
-  { name:"PGA West – Stadium Course", location:"La Quinta, CA", tees:[
+  { name:"PGA West – Stadium Course", front9pars:[4, 4, 3, 5, 4, 3, 5, 4, 4], back9pars:[4, 5, 3, 4, 4, 5, 3, 4, 4], location:"La Quinta, CA", tees:[
     { color:"Silver", front9:{rating:38.1,slope:150,par:36}, back9:{rating:38.2,slope:150,par:36} },
     { color:"Black",  front9:{rating:37.0,slope:143,par:36}, back9:{rating:37.1,slope:143,par:36} },
     { color:"Blue",   front9:{rating:35.8,slope:135,par:36}, back9:{rating:35.9,slope:135,par:36} },
@@ -1042,21 +1042,21 @@ const SOCAL_COURSES = [
     { color:"White",  front9:{rating:34.5,slope:124,par:36}, back9:{rating:34.5,slope:124,par:36} },
     { color:"Gold",   front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.5,slope:114,par:36} },
   ]},
-  { name:"SilverRock Resort", location:"La Quinta, CA", tees:[
+  { name:"SilverRock Resort", front9pars:[4, 5, 3, 4, 4, 3, 5, 4, 4], back9pars:[4, 3, 4, 5, 4, 3, 5, 4, 4], location:"La Quinta, CA", tees:[
     { color:"Silver", front9:{rating:38.2,slope:139,par:36}, back9:{rating:38.1,slope:139,par:36} },
     { color:"Black",  front9:{rating:36.8,slope:132,par:36}, back9:{rating:36.7,slope:132,par:36} },
     { color:"Blue",   front9:{rating:35.5,slope:124,par:36}, back9:{rating:35.5,slope:124,par:36} },
     { color:"White",  front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
     { color:"Gold",   front9:{rating:31.8,slope:108,par:36}, back9:{rating:31.8,slope:108,par:36} },
   ]},
-  { name:"The Classic Club", location:"Palm Desert, CA", tees:[
+  { name:"The Classic Club", front9pars:[4, 5, 3, 4, 4, 3, 5, 4, 4], back9pars:[4, 4, 3, 5, 4, 3, 5, 4, 4], location:"Palm Desert, CA", tees:[
     { color:"Black",  front9:{rating:37.0,slope:138,par:36}, back9:{rating:37.0,slope:138,par:36} },
     { color:"Blue",   front9:{rating:35.8,slope:130,par:36}, back9:{rating:35.8,slope:130,par:36} },
     { color:"White",  front9:{rating:34.2,slope:120,par:36}, back9:{rating:34.2,slope:120,par:36} },
     { color:"Gold",   front9:{rating:32.2,slope:112,par:36}, back9:{rating:32.2,slope:112,par:36} },
     { color:"Red",    front9:{rating:30.5,slope:104,par:36}, back9:{rating:30.5,slope:104,par:36} },
   ]},
-  { name:"Desert Willow – Firecliff Course", location:"Palm Desert, CA", tees:[
+  { name:"Desert Willow – Firecliff Course", front9pars:[4, 5, 3, 4, 4, 3, 5, 4, 4], back9pars:[4, 3, 5, 4, 4, 3, 4, 5, 4], location:"Palm Desert, CA", tees:[
     { color:"Black",  front9:{rating:36.8,slope:136,par:36}, back9:{rating:36.8,slope:136,par:36} },
     { color:"Blue",   front9:{rating:35.5,slope:128,par:36}, back9:{rating:35.5,slope:128,par:36} },
     { color:"White",  front9:{rating:34.0,slope:118,par:36}, back9:{rating:34.0,slope:118,par:36} },
@@ -1237,13 +1237,13 @@ const SOCAL_COURSES = [
     { color:"Red",    front9:{rating:29.5,slope:96,par:30},  back9:{rating:29.5,slope:96,par:30} },
   ]},
   // ── San Luis Obispo / Central Coast ─────────────────────────────────────────
-  { name:"Morro Bay Golf Course", location:"Morro Bay, CA", tees:[
+  { name:"Morro Bay Golf Course", front9pars:[4, 3, 4, 5, 4, 3, 4, 5, 4], back9pars:[4, 4, 3, 5, 4, 3, 4, 4, 5], location:"Morro Bay, CA", tees:[
     { color:"Black", front9:{rating:35.4,slope:119,par:36}, back9:{rating:35.4,slope:119,par:35} },
     { color:"Blue",  front9:{rating:34.5,slope:116,par:36}, back9:{rating:34.5,slope:116,par:35} },
     { color:"White", front9:{rating:33.0,slope:110,par:36}, back9:{rating:33.0,slope:110,par:35} },
     { color:"Red",   front9:{rating:31.0,slope:103,par:36}, back9:{rating:31.0,slope:103,par:35} },
   ]},
-  { name:"Dairy Creek Golf Course", location:"San Luis Obispo, CA", tees:[
+  { name:"Dairy Creek Golf Course", front9pars:[5, 4, 3, 4, 4, 3, 5, 4, 4], back9pars:[4, 4, 3, 5, 4, 3, 4, 5, 4], location:"San Luis Obispo, CA", tees:[
     { color:"Blue",  front9:{rating:34.8,slope:120,par:36}, back9:{rating:34.8,slope:120,par:36} },
     { color:"White", front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
     { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
@@ -1253,7 +1253,7 @@ const SOCAL_COURSES = [
     { color:"White", front9:{rating:34.2,slope:116,par:36}, back9:{rating:34.2,slope:116,par:36} },
     { color:"Red",   front9:{rating:32.0,slope:108,par:36}, back9:{rating:32.0,slope:108,par:36} },
   ]},
-  { name:"Hunter Ranch Golf Course", location:"Paso Robles, CA", tees:[
+  { name:"Hunter Ranch Golf Course", front9pars:[4, 5, 3, 4, 4, 3, 5, 4, 4], back9pars:[4, 3, 5, 4, 4, 3, 4, 5, 4], location:"Paso Robles, CA", tees:[
     { color:"Black", front9:{rating:36.4,slope:138,par:36}, back9:{rating:36.3,slope:138,par:36} },
     { color:"Blue",  front9:{rating:35.2,slope:130,par:36}, back9:{rating:35.0,slope:130,par:36} },
     { color:"White", front9:{rating:33.8,slope:120,par:36}, back9:{rating:33.5,slope:120,par:36} },
@@ -1317,7 +1317,7 @@ const SOCAL_COURSES = [
     { color:"Gold",  front9:{rating:34.8,slope:125,par:36}, back9:{rating:34.8,slope:125,par:35} },
     { color:"White", front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.6,slope:114,par:35} },
   ]},
-  { name:"Legends Golf Club at Temeku Hills", location:"Temecula, CA", tees:[
+  { name:"Legends Golf Club at Temeku Hills", front9pars:[4, 4, 3, 5, 4, 3, 4, 4, 5], back9pars:[4, 3, 5, 4, 4, 3, 5, 4, 4], location:"Temecula, CA", tees:[
     { color:"Tournament", front9:{rating:36.3,slope:130,par:36}, back9:{rating:36.2,slope:130,par:36} },
     { color:"Gold",       front9:{rating:36.0,slope:129,par:36}, back9:{rating:36.0,slope:129,par:36} },
     { color:"Blue",       front9:{rating:35.2,slope:125,par:36}, back9:{rating:35.1,slope:125,par:36} },
@@ -1403,9 +1403,8 @@ function PostRound({ state, fsUpdate, cp }) {
   const [slope, setSlope]         = useState("");
   const [par, setPar]             = useState("36");
   const [nineUsed, setNineUsed]   = useState("Front 9");
-  const [holeMode, setHoleMode]   = useState("total");
   const [holeScores, setHoleScores] = useState(Array(9).fill(""));
-  const [gross, setGross]         = useState("");
+  const [holePars, setHolePars]     = useState(Array(9).fill("4")); // default par 4 per hole
   const [date, setDate]           = useState(new Date().toISOString().slice(0, 10));
   const [msg, setMsg]             = useState("");
   const [err, setErr]             = useState("");
@@ -1423,20 +1422,41 @@ function PostRound({ state, fsUpdate, cp }) {
       setSlope(nine.slope?.toString() || "");
       setPar(nine.par?.toString() || "36");
     }
+    // Auto-fill hole pars if course has layout data
+    const layout = nineUsed === "Back 9" ? courseData.back9pars : courseData.front9pars;
+    if (layout && layout.length === 9) {
+      setHolePars(layout.map(String));
+    }
   };
 
   const handleScanFill = ({ course:c, teeColor:tc, rating:r, slope:sl, par:p, gross:g, holeScores:hs, nineUsed:nu }) => {
     if (c) setCourse(c); if (tc) setTeeColor(tc); if (r) setRating(r);
     if (sl) setSlope(sl); if (p) setPar(p); if (nu) setNineUsed(nu);
     if (hs && hs.length === 9 && hs.some(s => s)) {
-      setHoleScores(hs.map(s => s?.toString() || "")); setHoleMode("holes");
-      setGross(hs.reduce((a,b) => a+(parseInt(b)||0),0).toString());
-    } else if (g) { setGross(g); }
+      setHoleScores(hs.map(s => s?.toString() || ""));
+    }
     setShowScanner(false);
   };
 
+  // ── Net Double Bogey cap (WHS): max score per hole = par + 2 ──────────────
+  const holeParsNum = holePars.map(p => parseInt(p) || 4);
+  const cappedScores = holeScores.map((s, i) => {
+    const raw = parseInt(s);
+    if (isNaN(raw) || raw === 0) return null;
+    const cap = holeParsNum[i] + 3;
+    return Math.min(raw, cap);
+  });
+  const anyCapped = holeScores.some((s, i) => {
+    const raw = parseInt(s);
+    return !isNaN(raw) && raw > holeParsNum[i] + 3;
+  });
   const holesSum = holeScores.reduce((a,b) => a+(parseInt(b)||0), 0);
-  const effectiveGross = holeMode === "holes" ? (holesSum > 0 ? holesSum : "") : gross;
+  const cappedSum = cappedScores.reduce((a,b) => a+(b||0), 0);
+  const effectiveGross = cappedSum > 0 ? cappedSum : "";
+  const filledCount = holeScores.filter(s => s !== "" && !isNaN(parseInt(s))).length;
+
+  // Per-hole par based on total par selection (spread evenly)
+  const totalPar = parseInt(par) || 36;
 
   const openMatchups = state.matchups.filter(m => {
     const isMe   = m.player1Id === cp.id || m.player2Id === cp.id;
@@ -1444,16 +1464,18 @@ function PostRound({ state, fsUpdate, cp }) {
     return isMe && !posted;
   });
 
-  const prevDiff = effectiveGross && rating && slope ? calcDifferential(parseInt(effectiveGross), parseFloat(rating), parseFloat(slope)||113) : null;
+  const prevDiff = effectiveGross && rating && slope ? calcDifferential(effectiveGross, parseFloat(rating), parseFloat(slope)||113) : null;
   const prevCH   = cp.handicapIndex !== null && slope && rating ? calcCourseHandicap(cp.handicapIndex, parseFloat(slope), parseFloat(rating), parseFloat(par)) : null;
-  const prevNet  = prevCH !== null && effectiveGross ? parseInt(effectiveGross) - prevCH : null;
+  const prevNet  = prevCH !== null && effectiveGross ? effectiveGross - prevCH : null;
 
   const submit = async () => {
     setErr(""); setMsg(""); setSaving(true);
-    const g = parseInt(effectiveGross), sl = parseFloat(slope), cr = parseFloat(rating), p = parseFloat(par);
-    if (!course || !rating || !slope || !effectiveGross) { setErr("Fill in all fields."); setSaving(false); return; }
-    if (isNaN(g)||isNaN(sl)||isNaN(cr)) { setErr("Invalid numbers."); setSaving(false); return; }
+    const sl = parseFloat(slope), cr = parseFloat(rating), p = parseFloat(par);
+    if (!course || !rating || !slope || filledCount < 9) { setErr("Enter all 9 hole scores."); setSaving(false); return; }
+    if (isNaN(sl)||isNaN(cr)) { setErr("Invalid numbers."); setSaving(false); return; }
 
+    const g = effectiveGross; // capped gross
+    const rawGross = holesSum;  // actual strokes played
     const diff     = calcDifferential(g, cr, sl);
     const newDiffs = [...(cp.differentials || []), diff];
     const newHcp   = calcHandicapIndex(newDiffs);
@@ -1463,8 +1485,12 @@ function PostRound({ state, fsUpdate, cp }) {
     const round = {
       id: uid(), playerId: cp.id, matchupId: matchupId || null,
       course, teeColor, nineUsed, rating: cr, slope: sl, par: p,
-      grossScore: g, netScore, courseHandicap: courseHcp, differential: diff,
-      holeScores: holeMode === "holes" ? holeScores.map(Number) : null, date,
+      grossScore: rawGross, adjustedGross: g, netScore,
+      courseHandicap: courseHcp, differential: diff,
+      holeScores: holeScores.map(Number),
+      cappedScores: cappedScores,
+      holePars: holeParsNum,
+      date,
     };
 
     try {
@@ -1496,8 +1522,8 @@ function PostRound({ state, fsUpdate, cp }) {
       }
       const statusMsg = newHcp !== null ? `Handicap index: ${newHcp}.` : `${newDiffs.length}/3 rounds toward your handicap.`;
       setMsg(`Round posted! Diff: ${diff.toFixed(1)}. ${statusMsg}`);
-      setCourse(""); setTeeColor(""); setRating(""); setSlope(""); setGross("");
-      setHoleScores(Array(9).fill("")); setMatchupId(""); setHoleMode("total");
+      setCourse(""); setTeeColor(""); setRating(""); setSlope("");
+      setHoleScores(Array(9).fill("")); setHolePars(Array(9).fill("4")); setMatchupId("");
     } catch (e) {
       setErr("Failed to save round. Check your connection.");
     }
@@ -1569,27 +1595,62 @@ function PostRound({ state, fsUpdate, cp }) {
           <div className="fg"><div className="lbl">Par</div><select value={par} onChange={e=>setPar(e.target.value)}><option value="35">35</option><option value="36">36</option><option value="37">37</option></select></div>
         </div>
         <div className="mt16">
-          <div className="lbl" style={{ marginBottom:8 }}>Score Entry</div>
-          <div style={{ display:"flex",gap:8,marginBottom:12 }}>
-            <button className={`btn bsm ${holeMode==="total"?"bp":"bgh"}`} onClick={() => setHoleMode("total")}>Total Only</button>
-            <button className={`btn bsm ${holeMode==="holes"?"bp":"bgh"}`} onClick={() => setHoleMode("holes")}>Hole by Hole</button>
+          <div className="lbl" style={{ marginBottom:4 }}>Hole Scores — {nineUsed}</div>
+          <div className="tm" style={{ marginBottom:10,fontSize:12 }}>
+            WHS Net Triple Bogey cap applied automatically (max par+3 per hole)
           </div>
-          {holeMode === "total" ? (
-            <div className="fg"><div className="lbl">Gross Score ({nineUsed})</div><input type="number" value={gross} onChange={e=>setGross(e.target.value)} placeholder="45" style={{ maxWidth:120 }} /></div>
-          ) : (
-            <div>
-              <div className="lbl" style={{ marginBottom:8 }}>Hole Scores — {nineUsed}</div>
-              <div style={{ display:"grid",gridTemplateColumns:"repeat(9, 1fr)",gap:6 }}>
-                {holeScores.map((s,i) => (
-                  <div key={i} style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:10,color:"var(--muted)",marginBottom:2 }}>{nineUsed==="Back 9"?i+10:i+1}</div>
-                    <input type="number" value={s} onChange={e=>{ const n=[...holeScores];n[i]=e.target.value;setHoleScores(n); }} style={{ textAlign:"center",padding:"8px 4px",fontSize:14 }} placeholder="—" />
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(9, 1fr)",gap:6 }}>
+            {holeScores.map((s,i) => {
+              const holeNum = nineUsed==="Back 9" ? i+10 : i+1;
+              const raw = parseInt(s);
+              const cap = holeParsNum[i] + 3;
+              const isCapped = !isNaN(raw) && raw > cap;
+              return (
+                <div key={i} style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:"var(--muted)",marginBottom:2 }}>
+                    {holeNum}
+                    <span style={{ color:"var(--muted)",marginLeft:2 }}>p{holeParsNum[i]}</span>
                   </div>
-                ))}
-              </div>
-              {holesSum > 0 && <div className="mt8 tm">Total: <strong style={{ color:"var(--cream)" }}>{holesSum}</strong></div>}
+                  <input
+                    type="number"
+                    value={s}
+                    onChange={e=>{ const n=[...holeScores];n[i]=e.target.value;setHoleScores(n); }}
+                    style={{ textAlign:"center",padding:"8px 4px",fontSize:14,
+                      borderColor: isCapped ? "var(--gold)" : undefined,
+                      color: isCapped ? "var(--gold)" : undefined }}
+                    placeholder="—"
+                  />
+                  {isCapped && (
+                    <div style={{ fontSize:9,color:"var(--gold)",marginTop:2 }}>→{cap}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {holesSum > 0 && (
+            <div className="mt8 tm">
+              Actual: <strong style={{ color:"var(--cream)" }}>{holesSum}</strong>
+              {anyCapped && (
+                <span style={{ marginLeft:10 }}>
+                  Adjusted (capped): <strong style={{ color:"var(--gold)" }}>{cappedSum}</strong>
+                  <span style={{ marginLeft:6,fontSize:11 }}>used for handicap</span>
+                </span>
+              )}
             </div>
           )}
+          <div className="mt8">
+            <div className="lbl" style={{ marginBottom:6 }}>Hole Pars (adjust if needed)</div>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(9, 1fr)",gap:6 }}>
+              {holePars.map((p,i) => (
+                <select key={i} value={p} onChange={e=>{ const n=[...holePars];n[i]=e.target.value;setHolePars(n); }}
+                  style={{ padding:"4px 2px",fontSize:12,textAlign:"center" }}>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              ))}
+            </div>
+          </div>
         </div>
         {effectiveGross && rating && slope && (
           <div className="card card2 mt16">
@@ -1599,6 +1660,7 @@ function PostRound({ state, fsUpdate, cp }) {
               <div><div className="tm">Course Handicap</div><div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:"var(--gold)" }}>{prevCH!==null?prevCH:"Pending"}</div></div>
               <div><div className="tm">Net Score</div><div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:28,color:"var(--cream)" }}>{prevNet!==null?prevNet:"—"}</div></div>
             </div>
+            {anyCapped && <div style={{ fontSize:12,color:"var(--gold)",marginTop:8 }}>⚠ Net Triple Bogey cap applied on {holeScores.filter((s,i)=>parseInt(s)>holeParsNum[i]+3).length} hole(s)</div>}
             {cp.handicapIndex===null && <div className="tm mt8" style={{ fontSize:12 }}>⚠ Net score will calculate once you have 3+ rounds posted.</div>}
           </div>
         )}
