@@ -1311,6 +1311,20 @@ const SOCAL_COURSES = [
     { color:"Red",   front9:{rating:31.5,slope:104,par:36}, back9:{rating:31.5,slope:104,par:36} },
   ]},
   // ── Added courses ───────────────────────────────────────────────────────────
+  { name:"Terra Lago Golf Club – North", location:"Indio, CA", tees:[
+    { color:"Black",        front9:{rating:37.4,slope:139,par:36}, back9:{rating:37.3,slope:139,par:36} },
+    { color:"Yellow",       front9:{rating:36.0,slope:132,par:36}, back9:{rating:35.9,slope:132,par:36} },
+    { color:"White",        front9:{rating:34.6,slope:125,par:36}, back9:{rating:34.5,slope:125,par:36} },
+    { color:"Green",        front9:{rating:33.1,slope:118,par:36}, back9:{rating:33.0,slope:118,par:36} },
+    { color:"Red",          front9:{rating:32.4,slope:115,par:36}, back9:{rating:32.3,slope:115,par:36} },
+  ]},
+  { name:"Terra Lago Golf Club – South", location:"Indio, CA", tees:[
+    { color:"Black",        front9:{rating:37.2,slope:137,par:36}, back9:{rating:37.1,slope:137,par:36} },
+    { color:"Yellow",       front9:{rating:35.7,slope:130,par:36}, back9:{rating:35.7,slope:130,par:36} },
+    { color:"White",        front9:{rating:34.4,slope:123,par:36}, back9:{rating:34.3,slope:123,par:36} },
+    { color:"Green",        front9:{rating:32.9,slope:116,par:36}, back9:{rating:32.9,slope:116,par:36} },
+    { color:"Red",          front9:{rating:32.4,slope:114,par:36}, back9:{rating:32.4,slope:114,par:36} },
+  ]},
   { name:"Escena Golf Club", location:"Palm Springs, CA", tees:[
     { color:"Tournament", front9:{rating:37.2,slope:133,par:36}, back9:{rating:37.1,slope:133,par:36} },
     { color:"Championship", front9:{rating:35.9,slope:127,par:36}, back9:{rating:35.8,slope:127,par:36} },
