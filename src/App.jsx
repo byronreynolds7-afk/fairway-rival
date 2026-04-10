@@ -1311,6 +1311,12 @@ const SOCAL_COURSES = [
     { color:"Red",   front9:{rating:31.5,slope:104,par:36}, back9:{rating:31.5,slope:104,par:36} },
   ]},
   // ── Added courses ───────────────────────────────────────────────────────────
+  { name:"Escena Golf Club", location:"Palm Springs, CA", tees:[
+    { color:"Tournament", front9:{rating:37.2,slope:133,par:36}, back9:{rating:37.1,slope:133,par:36} },
+    { color:"Championship", front9:{rating:35.9,slope:127,par:36}, back9:{rating:35.8,slope:127,par:36} },
+    { color:"Middle",  front9:{rating:34.7,slope:122,par:36}, back9:{rating:34.6,slope:122,par:36} },
+    { color:"Forward", front9:{rating:33.3,slope:114,par:36}, back9:{rating:33.3,slope:114,par:36} },
+  ]},
   { name:"Rancho Las Palmas CC – North/South", location:"Rancho Mirage, CA", tees:[
     { color:"Black", front9:{rating:34.9,slope:124,par:36}, back9:{rating:34.9,slope:124,par:35} },
     { color:"Blue",  front9:{rating:34.2,slope:121,par:36}, back9:{rating:34.2,slope:121,par:35} },
