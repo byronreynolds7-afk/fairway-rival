@@ -170,6 +170,7 @@ export default function App() {
     deleteMatchup:(id)      => deleteDoc(doc(db, "matchups", id)),
     addRound:     (data)    => setDoc(doc(db, "rounds", data.id), data),
     updateRound:  (id, upd) => updateDoc(doc(db, "rounds", id), upd),
+    deleteRound:  (id)      => deleteDoc(doc(db, "rounds", id)),
     deleteRoundsByMatchup: (matchupId) => {
       rounds.filter(r => r.matchupId === matchupId).forEach(r => deleteDoc(doc(db, "rounds", r.id)));
     },
@@ -2315,6 +2316,150 @@ function CommLinkRound({ state, fsUpdate }) {
   );
 }
 
+function CommDeleteRound({ state, fsUpdate }) {
+  const { players, rounds, matchups } = state;
+  const [playerId, setPlayerId] = useState("");
+  const [roundId, setRoundId]   = useState("");
+  const [msg, setMsg]           = useState("");
+  const [err, setErr]           = useState("");
+  const [saving, setSaving]     = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const playerRounds = rounds
+    .filter(r => r.playerId === playerId)
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  const selectedRound = rounds.find(r => r.id === roundId);
+
+  const deleteRound = async () => {
+    setErr(""); setMsg(""); setSaving(true);
+    if (!roundId || !selectedRound) { setErr("Select a round to delete."); setSaving(false); return; }
+
+    const player = players.find(p => p.id === playerId);
+    if (!player) { setErr("Player not found."); setSaving(false); return; }
+
+    try {
+      // 1. Remove this round's differential from the player's history
+      const newDiffs = (player.differentials || []).filter((_, i) => {
+        // Remove the differential that matches this round's value (remove first match)
+        const idx = (player.differentials || []).findIndex(d => Math.abs(d - selectedRound.differential) < 0.05);
+        return i !== idx;
+      });
+      const newHcp = calcHandicapIndex(newDiffs);
+      await fsUpdate.updatePlayer(playerId, { differentials: newDiffs, handicapIndex: newHcp });
+
+      // 2. For each matchup this round was linked to, revert W/L and set back to pending
+      const linkedIds = selectedRound.matchupIds || (selectedRound.matchupId ? [selectedRound.matchupId] : []);
+      for (const mId of linkedIds) {
+        const matchup = matchups.find(m => m.id === mId);
+        if (!matchup || matchup.status !== "complete") continue;
+
+        // Revert matchup to pending
+        await fsUpdate.updateMatchup(mId, { status: "pending" });
+
+        // Find other player's round for this matchup to determine who won
+        const otherId = matchup.player1Id === playerId ? matchup.player2Id : matchup.player1Id;
+        const otherRound = rounds.find(r =>
+          r.id !== roundId &&
+          r.playerId === otherId &&
+          (r.matchupIds?.includes(mId) || r.matchupId === mId)
+        );
+
+        if (otherRound && selectedRound.netScore !== null && otherRound.netScore !== null) {
+          // Figure out who won so we can revert their record
+          let wId = null, lId = null, wasTie = false;
+          if (selectedRound.netScore < otherRound.netScore)       { wId = playerId; lId = otherId; }
+          else if (otherRound.netScore < selectedRound.netScore)  { wId = otherId;  lId = playerId; }
+          else { wasTie = true; }
+
+          const winner = players.find(p => p.id === wId);
+          const loser  = players.find(p => p.id === lId);
+          if (winner) await fsUpdate.updatePlayer(wId, { wins: Math.max(0,(winner.wins||0)-1) });
+          if (loser)  await fsUpdate.updatePlayer(lId, { losses: Math.max(0,(loser.losses||0)-1) });
+          if (wasTie) {
+            const pl1 = players.find(p => p.id === playerId);
+            const pl2 = players.find(p => p.id === otherId);
+            if (pl1) await fsUpdate.updatePlayer(playerId, { ties: Math.max(0,(pl1.ties||0)-1) });
+            if (pl2) await fsUpdate.updatePlayer(otherId,  { ties: Math.max(0,(pl2.ties||0)-1) });
+          }
+        }
+      }
+
+      // 3. Delete the round
+      await fsUpdate.deleteRound(roundId);
+
+      const revertMsg = linkedIds.length > 0 ? ` ${linkedIds.length} matchup${linkedIds.length>1?"s":""} set back to pending.` : "";
+      setMsg(`Round deleted.${revertMsg} Handicap recalculated.`);
+      setRoundId(""); setConfirming(false);
+    } catch(e) {
+      setErr("Failed to delete round. Check connection.");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <div className="stitle mt24">Delete a Round</div>
+      <div className="card">
+        <div className="fg mb16">
+          <div className="lbl">Player</div>
+          <select value={playerId} onChange={e => { setPlayerId(e.target.value); setRoundId(""); setConfirming(false); }}>
+            <option value="">— Select player —</option>
+            {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        {playerId && (
+          <div className="fg mb16">
+            <div className="lbl">Round</div>
+            {playerRounds.length === 0
+              ? <div className="tm">No rounds posted for this player.</div>
+              : <select value={roundId} onChange={e => { setRoundId(e.target.value); setConfirming(false); }}>
+                  <option value="">— Select round —</option>
+                  {playerRounds.map(r => {
+                    const linked = r.matchupIds?.length || (r.matchupId ? 1 : 0);
+                    return (
+                      <option key={r.id} value={r.id}>
+                        {new Date(r.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} · {r.course} · {r.grossScore} gross{r.netScore!=null?` / ${r.netScore} net`:""}
+                        {linked ? ` · ${linked} matchup${linked>1?"s":""}` : " · unlinked"}
+                      </option>
+                    );
+                  })}
+                </select>
+            }
+          </div>
+        )}
+        {roundId && selectedRound && !confirming && (
+          <div className="card card2" style={{ marginBottom:16 }}>
+            <div className="lbl" style={{ marginBottom:6 }}>Round to delete</div>
+            <div style={{ fontWeight:600 }}>{selectedRound.course}</div>
+            <div className="tm">{new Date(selectedRound.date).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} · {selectedRound.grossScore} gross{selectedRound.netScore!=null?` / ${selectedRound.netScore} net`:""}</div>
+            <div className="tm" style={{ fontSize:12,marginTop:4 }}>Diff: {selectedRound.differential?.toFixed(1)} · {selectedRound.rating}/{selectedRound.slope}</div>
+            {(selectedRound.matchupIds?.length || selectedRound.matchupId) && (
+              <div style={{ marginTop:8,fontSize:12,color:"var(--gold)" }}>
+                ⚠ This round is linked to {selectedRound.matchupIds?.length || 1} matchup{(selectedRound.matchupIds?.length||1)>1?"s":""}. Deleting will revert W/L records and set those matchups back to pending.
+              </div>
+            )}
+          </div>
+        )}
+        {roundId && !confirming && (
+          <button className="btn bd" onClick={() => setConfirming(true)}>Delete Round</button>
+        )}
+        {confirming && (
+          <div>
+            <div style={{ color:"var(--red)",fontWeight:600,marginBottom:12 }}>Are you sure? This cannot be undone.</div>
+            <div style={{ display:"flex",gap:8 }}>
+              <button className="btn bd" onClick={deleteRound} disabled={saving}>{saving?"Deleting...":"Yes, Delete"}</button>
+              <button className="btn bgh" onClick={() => setConfirming(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {err && <div className="err mt8">{err}</div>}
+        {msg && <div className="ok mt8">{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
 function CommEditChallenge({ c, from, to, fsUpdate }) {
   const [editing, setEditing] = useState(false);
   const [msg, setMsg]         = useState(c.message || "");
@@ -2450,6 +2595,7 @@ function Commissioner({ state, fsUpdate }) {
           </div>
         </div>
       ))}
+      <CommDeleteRound state={state} fsUpdate={fsUpdate} />
       <CommLinkRound state={state} fsUpdate={fsUpdate} />
       <CommPostRound state={state} fsUpdate={fsUpdate} />
     </div>
