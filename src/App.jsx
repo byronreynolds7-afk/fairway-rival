@@ -1961,6 +1961,19 @@ function CommPostRound({ state, fsUpdate }) {
     return isPlayer && !posted;
   });
 
+  const handleCourseSelect = (courseData, tee) => {
+    setCourse(courseData.name);
+    setTeeColor(tee.color);
+    const nine = nineUsed === "Back 9" ? tee.back9 : tee.front9;
+    if (nine) {
+      setRating(nine.rating?.toString() || "");
+      setSlope(nine.slope?.toString() || "");
+      setPar(nine.par?.toString() || "36");
+    }
+    const layout = nineUsed === "Back 9" ? courseData.back9pars : courseData.front9pars;
+    if (layout && layout.length === 9) setHolePars(layout.map(String));
+  };
+
   const submit = async () => {
     setErr(""); setMsg(""); setSaving(true);
     if (!targetPlayerId) { setErr("Select a player."); setSaving(false); return; }
@@ -2046,6 +2059,7 @@ function CommPostRound({ state, fsUpdate }) {
             </select>
           </div>
         )}
+        <CourseSearch onSelect={handleCourseSelect} />
         <div className="fr">
           <div className="fg"><div className="lbl">Course Name</div><input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Glendora CC" /></div>
           <div className="fg"><div className="lbl">Date Played</div><input type="date" value={date} onChange={e=>setDate(e.target.value)} /></div>
