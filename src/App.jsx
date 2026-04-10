@@ -1310,6 +1310,33 @@ const SOCAL_COURSES = [
     { color:"White", front9:{rating:33.5,slope:112,par:36}, back9:{rating:33.5,slope:112,par:36} },
     { color:"Red",   front9:{rating:31.5,slope:104,par:36}, back9:{rating:31.5,slope:104,par:36} },
   ]},
+  // ── Added courses ───────────────────────────────────────────────────────────
+  { name:"Marriott Shadow Ridge Golf Club", location:"Palm Desert, CA", tees:[
+    { color:"Black", front9:{rating:37.0,slope:136,par:36}, back9:{rating:36.9,slope:136,par:35} },
+    { color:"Green", front9:{rating:35.9,slope:131,par:36}, back9:{rating:36.0,slope:131,par:35} },
+    { color:"Gold",  front9:{rating:34.8,slope:125,par:36}, back9:{rating:34.8,slope:125,par:35} },
+    { color:"White", front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.6,slope:114,par:35} },
+  ]},
+  { name:"Legends Golf Club at Temeku Hills", location:"Temecula, CA", tees:[
+    { color:"Tournament", front9:{rating:36.3,slope:130,par:36}, back9:{rating:36.2,slope:130,par:36} },
+    { color:"Gold",       front9:{rating:36.0,slope:129,par:36}, back9:{rating:36.0,slope:129,par:36} },
+    { color:"Blue",       front9:{rating:35.2,slope:125,par:36}, back9:{rating:35.1,slope:125,par:36} },
+    { color:"White",      front9:{rating:34.4,slope:121,par:36}, back9:{rating:34.3,slope:121,par:36} },
+    { color:"Silver",     front9:{rating:33.4,slope:115,par:36}, back9:{rating:33.3,slope:115,par:36} },
+    { color:"Red",        front9:{rating:32.6,slope:110,par:36}, back9:{rating:32.6,slope:110,par:36} },
+  ]},
+  { name:"Glendora Country Club", location:"Glendora, CA", tees:[
+    { color:"Blue",  front9:{rating:36.1,slope:128,par:36}, back9:{rating:36.1,slope:128,par:36} },
+    { color:"White", front9:{rating:34.8,slope:120,par:36}, back9:{rating:34.8,slope:120,par:36} },
+    { color:"Gold",  front9:{rating:33.2,slope:114,par:36}, back9:{rating:33.2,slope:114,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"Mesa Verde Country Club", location:"Costa Mesa, CA", tees:[
+    { color:"Blue",  front9:{rating:36.2,slope:130,par:36}, back9:{rating:36.7,slope:132,par:35} },
+    { color:"White", front9:{rating:35.0,slope:122,par:36}, back9:{rating:35.0,slope:124,par:35} },
+    { color:"Gold",  front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:118,par:35} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:110,par:35} },
+  ]},
 ];
 
 function CourseSearch({ onSelect }) {
