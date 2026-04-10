@@ -1311,6 +1311,14 @@ const SOCAL_COURSES = [
     { color:"Red",   front9:{rating:31.5,slope:104,par:36}, back9:{rating:31.5,slope:104,par:36} },
   ]},
   // ── Added courses ───────────────────────────────────────────────────────────
+  { name:"The Havens Country Club", location:"Vista, CA", front9pars:[5,4,3,4,4,4,4,3,5], back9pars:[4,4,3,4,4,5,3,4,5], tees:[
+    { color:"Black",      front9:{rating:36.4,slope:136,par:36}, back9:{rating:36.6,slope:136,par:36} },
+    { color:"Blue",       front9:{rating:35.7,slope:133,par:36}, back9:{rating:35.6,slope:133,par:36} },
+    { color:"Blue/White", front9:{rating:35.3,slope:130,par:36}, back9:{rating:35.2,slope:130,par:36} },
+    { color:"White",      front9:{rating:34.9,slope:128,par:36}, back9:{rating:34.8,slope:128,par:36} },
+    { color:"Red",        front9:{rating:33.8,slope:122,par:36}, back9:{rating:33.7,slope:122,par:36} },
+    { color:"Gold",       front9:{rating:32.8,slope:116,par:36}, back9:{rating:32.8,slope:116,par:36} },
+  ]},
   { name:"Marriott Shadow Ridge Golf Club", location:"Palm Desert, CA", tees:[
     { color:"Black", front9:{rating:37.0,slope:136,par:36}, back9:{rating:36.9,slope:136,par:35} },
     { color:"Green", front9:{rating:35.9,slope:131,par:36}, back9:{rating:36.0,slope:131,par:35} },
@@ -1325,7 +1333,7 @@ const SOCAL_COURSES = [
     { color:"Silver",     front9:{rating:33.4,slope:115,par:36}, back9:{rating:33.3,slope:115,par:36} },
     { color:"Red",        front9:{rating:32.6,slope:110,par:36}, back9:{rating:32.6,slope:110,par:36} },
   ]},
-  { name:"Glendora Country Club", location:"Glendora, CA", tees:[
+  { name:"Glendora Country Club", front9pars:[5,3,4,4,5,4,3,4,4], back9pars:[4,4,5,3,4,3,4,4,5], location:"Glendora, CA", tees:[
     { color:"Blue",  front9:{rating:36.1,slope:128,par:36}, back9:{rating:36.1,slope:128,par:36} },
     { color:"White", front9:{rating:34.8,slope:120,par:36}, back9:{rating:34.8,slope:120,par:36} },
     { color:"Gold",  front9:{rating:33.2,slope:114,par:36}, back9:{rating:33.2,slope:114,par:36} },
