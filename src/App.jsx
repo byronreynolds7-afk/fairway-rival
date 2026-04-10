@@ -810,66 +810,559 @@ function ScorecardScanner({ onFill }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST ROUND  (writes directly to Firestore)
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Static SoCal + Coachella Valley course database ──────────────────────────
+const SOCAL_COURSES = [
+  // ── Orange County ──────────────────────────────────────────────────────────
+  { name:"Coyote Hills Golf Course", location:"Fullerton, CA", tees:[
+    { color:"Black", front9:{rating:36.3,slope:134,par:35}, back9:{rating:35.8,slope:134,par:35} },
+    { color:"Blue",  front9:{rating:35.1,slope:127,par:35}, back9:{rating:34.6,slope:127,par:35} },
+    { color:"White", front9:{rating:33.8,slope:120,par:35}, back9:{rating:33.3,slope:120,par:35} },
+    { color:"Gold",  front9:{rating:32.0,slope:113,par:35}, back9:{rating:31.5,slope:113,par:35} },
+    { color:"Red",   front9:{rating:30.5,slope:107,par:35}, back9:{rating:30.0,slope:107,par:35} },
+  ]},
+  { name:"Costa Mesa G&CC – Los Lagos", location:"Costa Mesa, CA", tees:[
+    { color:"Blue",  front9:{rating:35.6,slope:126,par:36}, back9:{rating:35.6,slope:126,par:36} },
+    { color:"White", front9:{rating:34.3,slope:118,par:36}, back9:{rating:34.3,slope:118,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+  ]},
+  { name:"Costa Mesa G&CC – Mesa Linda", location:"Costa Mesa, CA", tees:[
+    { color:"Blue",  front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
+    { color:"White", front9:{rating:32.2,slope:110,par:36}, back9:{rating:32.2,slope:110,par:36} },
+    { color:"Red",   front9:{rating:30.0,slope:103,par:36}, back9:{rating:30.0,slope:103,par:36} },
+  ]},
+  { name:"Mile Square Golf – Championship", location:"Fountain Valley, CA", tees:[
+    { color:"Blue",  front9:{rating:35.6,slope:124,par:36}, back9:{rating:35.6,slope:124,par:36} },
+    { color:"White", front9:{rating:34.2,slope:118,par:36}, back9:{rating:34.2,slope:118,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:108,par:36}, back9:{rating:32.0,slope:108,par:36} },
+  ]},
+  { name:"Mile Square Golf – Players", location:"Fountain Valley, CA", tees:[
+    { color:"Blue",  front9:{rating:34.8,slope:120,par:36}, back9:{rating:34.8,slope:120,par:36} },
+    { color:"White", front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+  ]},
+  { name:"Monarch Beach Golf Links", location:"Dana Point, CA", tees:[
+    { color:"Black", front9:{rating:36.0,slope:130,par:36}, back9:{rating:36.0,slope:130,par:36} },
+    { color:"Blue",  front9:{rating:35.0,slope:124,par:36}, back9:{rating:35.0,slope:124,par:36} },
+    { color:"White", front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"Shorecliffs Golf Club", location:"San Clemente, CA", tees:[
+    { color:"Blue",  front9:{rating:34.5,slope:120,par:36}, back9:{rating:34.5,slope:120,par:36} },
+    { color:"White", front9:{rating:33.2,slope:114,par:36}, back9:{rating:33.2,slope:114,par:36} },
+    { color:"Red",   front9:{rating:31.0,slope:106,par:36}, back9:{rating:31.0,slope:106,par:36} },
+  ]},
+  { name:"San Clemente Municipal Golf Club", location:"San Clemente, CA", tees:[
+    { color:"Blue",  front9:{rating:35.2,slope:122,par:36}, back9:{rating:35.2,slope:122,par:36} },
+    { color:"White", front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"River View Golf Course", location:"Santa Ana, CA", tees:[
+    { color:"Blue",  front9:{rating:34.8,slope:118,par:35}, back9:{rating:34.8,slope:118,par:35} },
+    { color:"White", front9:{rating:33.5,slope:112,par:35}, back9:{rating:33.5,slope:112,par:35} },
+    { color:"Red",   front9:{rating:31.5,slope:104,par:35}, back9:{rating:31.5,slope:104,par:35} },
+  ]},
+  { name:"Tustin Ranch Golf Club", location:"Tustin, CA", tees:[
+    { color:"Black", front9:{rating:36.5,slope:132,par:36}, back9:{rating:36.5,slope:132,par:36} },
+    { color:"Blue",  front9:{rating:35.5,slope:126,par:36}, back9:{rating:35.5,slope:126,par:36} },
+    { color:"White", front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+  ]},
+  { name:"Strawberry Farms Golf Club", location:"Irvine, CA", tees:[
+    { color:"Black", front9:{rating:36.8,slope:136,par:36}, back9:{rating:36.8,slope:136,par:36} },
+    { color:"Blue",  front9:{rating:35.5,slope:128,par:36}, back9:{rating:35.5,slope:128,par:36} },
+    { color:"White", front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
+    { color:"Red",   front9:{rating:31.8,slope:110,par:36}, back9:{rating:31.8,slope:110,par:36} },
+  ]},
+  { name:"Oak Creek Golf Club", location:"Irvine, CA", tees:[
+    { color:"Black", front9:{rating:36.2,slope:130,par:36}, back9:{rating:36.2,slope:130,par:36} },
+    { color:"Blue",  front9:{rating:35.0,slope:124,par:36}, back9:{rating:35.0,slope:124,par:36} },
+    { color:"White", front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"Pelican Hill GC – Ocean North", location:"Newport Coast, CA", tees:[
+    { color:"Black", front9:{rating:37.5,slope:140,par:36}, back9:{rating:37.5,slope:140,par:36} },
+    { color:"Blue",  front9:{rating:36.2,slope:132,par:36}, back9:{rating:36.2,slope:132,par:36} },
+    { color:"White", front9:{rating:34.5,slope:122,par:36}, back9:{rating:34.5,slope:122,par:36} },
+    { color:"Red",   front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.5,slope:114,par:36} },
+  ]},
+  { name:"Pelican Hill GC – Ocean South", location:"Newport Coast, CA", tees:[
+    { color:"Black", front9:{rating:37.2,slope:138,par:36}, back9:{rating:37.2,slope:138,par:36} },
+    { color:"Blue",  front9:{rating:36.0,slope:130,par:36}, back9:{rating:36.0,slope:130,par:36} },
+    { color:"White", front9:{rating:34.2,slope:120,par:36}, back9:{rating:34.2,slope:120,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+  ]},
+  { name:"Aliso Viejo Golf Club", location:"Aliso Viejo, CA", tees:[
+    { color:"Blue",  front9:{rating:35.2,slope:124,par:36}, back9:{rating:35.2,slope:124,par:36} },
+    { color:"White", front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"Dove Canyon Country Club", location:"Rancho Santa Margarita, CA", tees:[
+    { color:"Black", front9:{rating:36.5,slope:132,par:36}, back9:{rating:36.5,slope:132,par:36} },
+    { color:"Blue",  front9:{rating:35.2,slope:124,par:36}, back9:{rating:35.2,slope:124,par:36} },
+    { color:"White", front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"Tijeras Creek Golf Club", location:"Rancho Santa Margarita, CA", tees:[
+    { color:"Blue",  front9:{rating:35.8,slope:126,par:36}, back9:{rating:35.8,slope:126,par:36} },
+    { color:"White", front9:{rating:34.5,slope:120,par:36}, back9:{rating:34.5,slope:120,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+  ]},
+  { name:"Talega Golf Club", location:"San Clemente, CA", tees:[
+    { color:"Black", front9:{rating:37.0,slope:136,par:36}, back9:{rating:37.0,slope:136,par:36} },
+    { color:"Blue",  front9:{rating:35.8,slope:128,par:36}, back9:{rating:35.8,slope:128,par:36} },
+    { color:"White", front9:{rating:34.2,slope:120,par:36}, back9:{rating:34.2,slope:120,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+  ]},
+  { name:"Arroyo Trabuco Golf Club", location:"Mission Viejo, CA", tees:[
+    { color:"Black", front9:{rating:36.8,slope:132,par:36}, back9:{rating:36.8,slope:132,par:36} },
+    { color:"Blue",  front9:{rating:35.5,slope:126,par:36}, back9:{rating:35.5,slope:126,par:36} },
+    { color:"White", front9:{rating:34.0,slope:118,par:36}, back9:{rating:34.0,slope:118,par:36} },
+    { color:"Red",   front9:{rating:31.8,slope:110,par:36}, back9:{rating:31.8,slope:110,par:36} },
+  ]},
+  { name:"Casta Del Sol Golf Course", location:"Mission Viejo, CA", tees:[
+    { color:"Blue",  front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
+    { color:"White", front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+    { color:"Red",   front9:{rating:30.0,slope:102,par:36}, back9:{rating:30.0,slope:102,par:36} },
+  ]},
+  { name:"Seabee Golf Course", location:"Seal Beach, CA", tees:[
+    { color:"Blue",  front9:{rating:35.2,slope:122,par:36}, back9:{rating:35.5,slope:122,par:35} },
+    { color:"White", front9:{rating:33.8,slope:116,par:36}, back9:{rating:34.0,slope:116,par:35} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:35} },
+  ]},
+  { name:"Yorba Linda Country Club", location:"Yorba Linda, CA", tees:[
+    { color:"Blue",  front9:{rating:35.8,slope:128,par:36}, back9:{rating:35.8,slope:128,par:36} },
+    { color:"White", front9:{rating:34.5,slope:120,par:36}, back9:{rating:34.5,slope:120,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+  ]},
+  // ── LA County / SGV / Inland Empire ────────────────────────────────────────
+  { name:"Green River Golf Club", location:"Corona, CA", tees:[
+    { color:"Blue",  front9:{rating:35.5,slope:124,par:36}, back9:{rating:35.5,slope:124,par:36} },
+    { color:"White", front9:{rating:34.2,slope:118,par:36}, back9:{rating:34.2,slope:118,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+  ]},
+  { name:"Whittier Narrows Golf Course", location:"Rosemead, CA", tees:[
+    { color:"Blue",  front9:{rating:34.5,slope:118,par:36}, back9:{rating:34.5,slope:118,par:36} },
+    { color:"White", front9:{rating:33.2,slope:112,par:36}, back9:{rating:33.2,slope:112,par:36} },
+    { color:"Red",   front9:{rating:31.0,slope:104,par:36}, back9:{rating:31.0,slope:104,par:36} },
+  ]},
+  { name:"Industry Hills GC – Eisenhower", location:"City of Industry, CA", tees:[
+    { color:"Black", front9:{rating:37.0,slope:138,par:36}, back9:{rating:37.0,slope:138,par:36} },
+    { color:"Blue",  front9:{rating:35.8,slope:130,par:36}, back9:{rating:35.8,slope:130,par:36} },
+    { color:"White", front9:{rating:34.2,slope:122,par:36}, back9:{rating:34.2,slope:122,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:114,par:36}, back9:{rating:32.0,slope:114,par:36} },
+  ]},
+  { name:"Industry Hills GC – Zaharias", location:"City of Industry, CA", tees:[
+    { color:"Blue",  front9:{rating:36.2,slope:132,par:36}, back9:{rating:36.2,slope:132,par:36} },
+    { color:"White", front9:{rating:34.8,slope:124,par:36}, back9:{rating:34.8,slope:124,par:36} },
+    { color:"Red",   front9:{rating:32.5,slope:116,par:36}, back9:{rating:32.5,slope:116,par:36} },
+  ]},
+  { name:"San Dimas Canyon Golf Course", location:"San Dimas, CA", tees:[
+    { color:"Blue",  front9:{rating:35.0,slope:122,par:36}, back9:{rating:35.0,slope:122,par:36} },
+    { color:"White", front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"Prado Golf Course", location:"Chino, CA", tees:[
+    { color:"Blue",  front9:{rating:35.2,slope:120,par:36}, back9:{rating:35.2,slope:120,par:36} },
+    { color:"White", front9:{rating:33.8,slope:114,par:36}, back9:{rating:33.8,slope:114,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+  ]},
+  { name:"Jurupa Hills Country Club", location:"Riverside, CA", tees:[
+    { color:"Blue",  front9:{rating:35.0,slope:120,par:36}, back9:{rating:35.0,slope:120,par:36} },
+    { color:"White", front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+  ]},
+  { name:"Moreno Valley Ranch GC", location:"Moreno Valley, CA", tees:[
+    { color:"Blue",  front9:{rating:36.0,slope:128,par:36}, back9:{rating:36.0,slope:128,par:36} },
+    { color:"White", front9:{rating:34.5,slope:120,par:36}, back9:{rating:34.5,slope:120,par:36} },
+    { color:"Red",   front9:{rating:32.2,slope:112,par:36}, back9:{rating:32.2,slope:112,par:36} },
+  ]},
+  // ── San Diego County ────────────────────────────────────────────────────────
+  { name:"Torrey Pines – South", location:"La Jolla, CA", tees:[
+    { color:"Black", front9:{rating:37.5,slope:144,par:36}, back9:{rating:37.5,slope:144,par:36} },
+    { color:"Blue",  front9:{rating:36.5,slope:138,par:36}, back9:{rating:36.5,slope:138,par:36} },
+    { color:"White", front9:{rating:35.0,slope:128,par:36}, back9:{rating:35.0,slope:128,par:36} },
+    { color:"Red",   front9:{rating:32.5,slope:116,par:36}, back9:{rating:32.5,slope:116,par:36} },
+  ]},
+  { name:"Torrey Pines – North", location:"La Jolla, CA", tees:[
+    { color:"Blue",  front9:{rating:35.8,slope:130,par:36}, back9:{rating:35.8,slope:130,par:36} },
+    { color:"White", front9:{rating:34.2,slope:122,par:36}, back9:{rating:34.2,slope:122,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:114,par:36}, back9:{rating:32.0,slope:114,par:36} },
+  ]},
+  { name:"Riverwalk Golf Club", location:"San Diego, CA", tees:[
+    { color:"Blue",  front9:{rating:35.5,slope:124,par:36}, back9:{rating:35.5,slope:124,par:36} },
+    { color:"White", front9:{rating:34.0,slope:116,par:36}, back9:{rating:34.0,slope:116,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+  ]},
+  { name:"Balboa Park Golf Course", location:"San Diego, CA", tees:[
+    { color:"Blue",  front9:{rating:35.0,slope:120,par:36}, back9:{rating:35.0,slope:120,par:36} },
+    { color:"White", front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+  ]},
+  // ── Coachella Valley / Palm Springs ─────────────────────────────────────────
+  { name:"PGA West – Stadium Course", location:"La Quinta, CA", tees:[
+    { color:"Silver", front9:{rating:38.1,slope:150,par:36}, back9:{rating:38.2,slope:150,par:36} },
+    { color:"Black",  front9:{rating:37.0,slope:143,par:36}, back9:{rating:37.1,slope:143,par:36} },
+    { color:"Blue",   front9:{rating:35.8,slope:135,par:36}, back9:{rating:35.9,slope:135,par:36} },
+    { color:"White",  front9:{rating:34.2,slope:124,par:36}, back9:{rating:34.3,slope:124,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:116,par:36}, back9:{rating:32.5,slope:116,par:36} },
+  ]},
+  { name:"PGA West – Nicklaus Tournament", location:"La Quinta, CA", tees:[
+    { color:"Black",  front9:{rating:37.2,slope:140,par:36}, back9:{rating:37.2,slope:140,par:36} },
+    { color:"Blue",   front9:{rating:36.0,slope:132,par:36}, back9:{rating:36.0,slope:132,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:122,par:36}, back9:{rating:34.5,slope:122,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.5,slope:114,par:36} },
+  ]},
+  { name:"PGA West – Greg Norman", location:"La Quinta, CA", tees:[
+    { color:"Black",  front9:{rating:36.8,slope:138,par:36}, back9:{rating:36.8,slope:138,par:36} },
+    { color:"Blue",   front9:{rating:35.5,slope:130,par:36}, back9:{rating:35.5,slope:130,par:36} },
+    { color:"White",  front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+  ]},
+  { name:"PGA West – Arnold Palmer", location:"La Quinta, CA", tees:[
+    { color:"Black",  front9:{rating:36.5,slope:136,par:36}, back9:{rating:36.5,slope:136,par:36} },
+    { color:"Blue",   front9:{rating:35.2,slope:128,par:36}, back9:{rating:35.2,slope:128,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:118,par:36}, back9:{rating:33.8,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:110,par:36}, back9:{rating:31.8,slope:110,par:36} },
+  ]},
+  { name:"PGA West – Mountain Course", location:"La Quinta, CA", tees:[
+    { color:"Black",  front9:{rating:37.0,slope:140,par:36}, back9:{rating:37.0,slope:140,par:36} },
+    { color:"Blue",   front9:{rating:35.8,slope:132,par:36}, back9:{rating:35.8,slope:132,par:36} },
+    { color:"White",  front9:{rating:34.2,slope:122,par:36}, back9:{rating:34.2,slope:122,par:36} },
+    { color:"Gold",   front9:{rating:32.2,slope:114,par:36}, back9:{rating:32.2,slope:114,par:36} },
+  ]},
+  { name:"La Quinta Resort – Dunes Course", location:"La Quinta, CA", tees:[
+    { color:"Black",  front9:{rating:36.8,slope:138,par:36}, back9:{rating:36.8,slope:138,par:36} },
+    { color:"Blue",   front9:{rating:35.5,slope:130,par:36}, back9:{rating:35.5,slope:130,par:36} },
+    { color:"White",  front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+  ]},
+  { name:"La Quinta Resort – Mountain Course", location:"La Quinta, CA", tees:[
+    { color:"Black",  front9:{rating:37.2,slope:142,par:36}, back9:{rating:37.2,slope:142,par:36} },
+    { color:"Blue",   front9:{rating:36.0,slope:134,par:36}, back9:{rating:36.0,slope:134,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:124,par:36}, back9:{rating:34.5,slope:124,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.5,slope:114,par:36} },
+  ]},
+  { name:"SilverRock Resort", location:"La Quinta, CA", tees:[
+    { color:"Silver", front9:{rating:38.2,slope:139,par:36}, back9:{rating:38.1,slope:139,par:36} },
+    { color:"Black",  front9:{rating:36.8,slope:132,par:36}, back9:{rating:36.7,slope:132,par:36} },
+    { color:"Blue",   front9:{rating:35.5,slope:124,par:36}, back9:{rating:35.5,slope:124,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:108,par:36}, back9:{rating:31.8,slope:108,par:36} },
+  ]},
+  { name:"The Classic Club", location:"Palm Desert, CA", tees:[
+    { color:"Black",  front9:{rating:37.0,slope:138,par:36}, back9:{rating:37.0,slope:138,par:36} },
+    { color:"Blue",   front9:{rating:35.8,slope:130,par:36}, back9:{rating:35.8,slope:130,par:36} },
+    { color:"White",  front9:{rating:34.2,slope:120,par:36}, back9:{rating:34.2,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.2,slope:112,par:36}, back9:{rating:32.2,slope:112,par:36} },
+    { color:"Red",    front9:{rating:30.5,slope:104,par:36}, back9:{rating:30.5,slope:104,par:36} },
+  ]},
+  { name:"Desert Willow – Firecliff Course", location:"Palm Desert, CA", tees:[
+    { color:"Black",  front9:{rating:36.8,slope:136,par:36}, back9:{rating:36.8,slope:136,par:36} },
+    { color:"Blue",   front9:{rating:35.5,slope:128,par:36}, back9:{rating:35.5,slope:128,par:36} },
+    { color:"White",  front9:{rating:34.0,slope:118,par:36}, back9:{rating:34.0,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+    { color:"Red",    front9:{rating:30.2,slope:102,par:36}, back9:{rating:30.2,slope:102,par:36} },
+  ]},
+  { name:"Desert Willow – Mountain View Course", location:"Palm Desert, CA", tees:[
+    { color:"Black",  front9:{rating:36.2,slope:130,par:36}, back9:{rating:36.2,slope:130,par:36} },
+    { color:"Blue",   front9:{rating:35.0,slope:122,par:36}, back9:{rating:35.0,slope:122,par:36} },
+    { color:"White",  front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Gold",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+    { color:"Red",    front9:{rating:29.8,slope:98,par:36},  back9:{rating:29.8,slope:98,par:36} },
+  ]},
+  { name:"Desert Falls Country Club", location:"Palm Desert, CA", tees:[
+    { color:"Black",  front9:{rating:37.0,slope:145,par:36}, back9:{rating:37.0,slope:145,par:36} },
+    { color:"Blue",   front9:{rating:35.8,slope:136,par:36}, back9:{rating:35.8,slope:136,par:36} },
+    { color:"White",  front9:{rating:34.2,slope:126,par:36}, back9:{rating:34.2,slope:126,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:118,par:36}, back9:{rating:32.5,slope:118,par:36} },
+    { color:"Red",    front9:{rating:30.8,slope:110,par:36}, back9:{rating:30.8,slope:110,par:36} },
+  ]},
+  { name:"Marriott Desert Springs – Valley", location:"Palm Desert, CA", tees:[
+    { color:"Blue",   front9:{rating:35.8,slope:128,par:36}, back9:{rating:35.8,slope:128,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:120,par:36}, back9:{rating:34.5,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:112,par:36}, back9:{rating:32.5,slope:112,par:36} },
+    { color:"Red",    front9:{rating:30.8,slope:104,par:36}, back9:{rating:30.8,slope:104,par:36} },
+  ]},
+  { name:"Marriott Desert Springs – Palm", location:"Palm Desert, CA", tees:[
+    { color:"Blue",   front9:{rating:36.0,slope:130,par:36}, back9:{rating:36.0,slope:130,par:36} },
+    { color:"White",  front9:{rating:34.8,slope:122,par:36}, back9:{rating:34.8,slope:122,par:36} },
+    { color:"Gold",   front9:{rating:32.8,slope:114,par:36}, back9:{rating:32.8,slope:114,par:36} },
+    { color:"Red",    front9:{rating:31.0,slope:106,par:36}, back9:{rating:31.0,slope:106,par:36} },
+  ]},
+  { name:"Indian Wells Golf Resort – Celebrity", location:"Indian Wells, CA", tees:[
+    { color:"Black",  front9:{rating:37.2,slope:140,par:36}, back9:{rating:37.2,slope:140,par:36} },
+    { color:"Blue",   front9:{rating:36.0,slope:132,par:36}, back9:{rating:36.0,slope:132,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:122,par:36}, back9:{rating:34.5,slope:122,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.5,slope:114,par:36} },
+    { color:"Red",    front9:{rating:30.8,slope:106,par:36}, back9:{rating:30.8,slope:106,par:36} },
+  ]},
+  { name:"Indian Wells Golf Resort – Players", location:"Indian Wells, CA", tees:[
+    { color:"Black",  front9:{rating:36.5,slope:134,par:36}, back9:{rating:36.5,slope:134,par:36} },
+    { color:"Blue",   front9:{rating:35.2,slope:126,par:36}, back9:{rating:35.2,slope:126,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:108,par:36}, back9:{rating:31.8,slope:108,par:36} },
+    { color:"Red",    front9:{rating:30.0,slope:100,par:36}, back9:{rating:30.0,slope:100,par:36} },
+  ]},
+  { name:"Mission Hills CC – Dinah Shore", location:"Rancho Mirage, CA", tees:[
+    { color:"Black",  front9:{rating:37.5,slope:142,par:36}, back9:{rating:37.5,slope:142,par:36} },
+    { color:"Blue",   front9:{rating:36.2,slope:134,par:36}, back9:{rating:36.2,slope:134,par:36} },
+    { color:"White",  front9:{rating:34.8,slope:124,par:36}, back9:{rating:34.8,slope:124,par:36} },
+    { color:"Gold",   front9:{rating:32.8,slope:116,par:36}, back9:{rating:32.8,slope:116,par:36} },
+    { color:"Red",    front9:{rating:31.0,slope:108,par:36}, back9:{rating:31.0,slope:108,par:36} },
+  ]},
+  { name:"Mission Hills CC – Arnold Palmer", location:"Rancho Mirage, CA", tees:[
+    { color:"Blue",   front9:{rating:36.0,slope:132,par:36}, back9:{rating:36.0,slope:132,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:122,par:36}, back9:{rating:34.5,slope:122,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.5,slope:114,par:36} },
+    { color:"Red",    front9:{rating:30.8,slope:106,par:36}, back9:{rating:30.8,slope:106,par:36} },
+  ]},
+  { name:"Mission Hills CC – Gary Player", location:"Rancho Mirage, CA", tees:[
+    { color:"Blue",   front9:{rating:35.8,slope:130,par:36}, back9:{rating:35.8,slope:130,par:36} },
+    { color:"White",  front9:{rating:34.2,slope:120,par:36}, back9:{rating:34.2,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.2,slope:112,par:36}, back9:{rating:32.2,slope:112,par:36} },
+    { color:"Red",    front9:{rating:30.5,slope:104,par:36}, back9:{rating:30.5,slope:104,par:36} },
+  ]},
+  { name:"Westin Mission Hills – Pete Dye", location:"Rancho Mirage, CA", tees:[
+    { color:"Black",  front9:{rating:36.8,slope:138,par:36}, back9:{rating:36.8,slope:138,par:36} },
+    { color:"Blue",   front9:{rating:35.5,slope:130,par:36}, back9:{rating:35.5,slope:130,par:36} },
+    { color:"White",  front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+  ]},
+  { name:"Westin Mission Hills – Gary Player", location:"Rancho Mirage, CA", tees:[
+    { color:"Blue",   front9:{rating:35.2,slope:126,par:36}, back9:{rating:35.2,slope:126,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:118,par:36}, back9:{rating:33.8,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:110,par:36}, back9:{rating:31.8,slope:110,par:36} },
+  ]},
+  { name:"Tamarisk Country Club", location:"Rancho Mirage, CA", tees:[
+    { color:"Blue",   front9:{rating:36.0,slope:130,par:36}, back9:{rating:36.0,slope:130,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:122,par:36}, back9:{rating:34.5,slope:122,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:114,par:36}, back9:{rating:32.5,slope:114,par:36} },
+    { color:"Red",    front9:{rating:30.8,slope:106,par:36}, back9:{rating:30.8,slope:106,par:36} },
+  ]},
+  { name:"Indian Canyons GC – North Course", location:"Palm Springs, CA", tees:[
+    { color:"Black",  front9:{rating:36.5,slope:134,par:36}, back9:{rating:36.5,slope:134,par:36} },
+    { color:"Blue",   front9:{rating:35.2,slope:126,par:36}, back9:{rating:35.2,slope:126,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:108,par:36}, back9:{rating:31.8,slope:108,par:36} },
+  ]},
+  { name:"Indian Canyons GC – South Course", location:"Palm Springs, CA", tees:[
+    { color:"Blue",   front9:{rating:35.5,slope:128,par:36}, back9:{rating:35.5,slope:128,par:36} },
+    { color:"White",  front9:{rating:34.0,slope:118,par:36}, back9:{rating:34.0,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+    { color:"Red",    front9:{rating:30.2,slope:102,par:36}, back9:{rating:30.2,slope:102,par:36} },
+  ]},
+  { name:"Tahquitz Creek Golf Resort – Legend", location:"Palm Springs, CA", tees:[
+    { color:"Blue",   front9:{rating:35.8,slope:126,par:36}, back9:{rating:35.8,slope:126,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:118,par:36}, back9:{rating:34.5,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:110,par:36}, back9:{rating:32.5,slope:110,par:36} },
+    { color:"Red",    front9:{rating:30.8,slope:102,par:36}, back9:{rating:30.8,slope:102,par:36} },
+  ]},
+  { name:"Tahquitz Creek Golf Resort – Resort", location:"Palm Springs, CA", tees:[
+    { color:"Blue",   front9:{rating:35.2,slope:122,par:36}, back9:{rating:35.2,slope:122,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:114,par:36}, back9:{rating:33.8,slope:114,par:36} },
+    { color:"Gold",   front9:{rating:32.0,slope:106,par:36}, back9:{rating:32.0,slope:106,par:36} },
+    { color:"Red",    front9:{rating:30.2,slope:98,par:36},  back9:{rating:30.2,slope:98,par:36} },
+  ]},
+  { name:"Palm Springs Golf Course", location:"Palm Springs, CA", tees:[
+    { color:"Blue",   front9:{rating:34.8,slope:120,par:36}, back9:{rating:34.8,slope:120,par:36} },
+    { color:"White",  front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Red",    front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+  ]},
+  { name:"Cathedral Canyon Country Club", location:"Cathedral City, CA", tees:[
+    { color:"Blue",   front9:{rating:35.5,slope:126,par:36}, back9:{rating:35.5,slope:126,par:36} },
+    { color:"White",  front9:{rating:34.2,slope:118,par:36}, back9:{rating:34.2,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:32.2,slope:110,par:36}, back9:{rating:32.2,slope:110,par:36} },
+    { color:"Red",    front9:{rating:30.5,slope:102,par:36}, back9:{rating:30.5,slope:102,par:36} },
+  ]},
+  { name:"Shadow Hills GC – North", location:"Indio, CA", tees:[
+    { color:"Black",  front9:{rating:36.5,slope:134,par:36}, back9:{rating:36.5,slope:134,par:36} },
+    { color:"Blue",   front9:{rating:35.2,slope:126,par:36}, back9:{rating:35.2,slope:126,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:118,par:36}, back9:{rating:33.8,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:110,par:36}, back9:{rating:31.8,slope:110,par:36} },
+    { color:"Red",    front9:{rating:30.0,slope:102,par:36}, back9:{rating:30.0,slope:102,par:36} },
+  ]},
+  { name:"Shadow Hills GC – South", location:"Indio, CA", tees:[
+    { color:"Black",  front9:{rating:36.8,slope:136,par:36}, back9:{rating:36.8,slope:136,par:36} },
+    { color:"Blue",   front9:{rating:35.5,slope:128,par:36}, back9:{rating:35.5,slope:128,par:36} },
+    { color:"White",  front9:{rating:34.0,slope:120,par:36}, back9:{rating:34.0,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.0,slope:112,par:36}, back9:{rating:32.0,slope:112,par:36} },
+    { color:"Red",    front9:{rating:30.2,slope:104,par:36}, back9:{rating:30.2,slope:104,par:36} },
+  ]},
+  { name:"Indian Palms CC – Mountain/Royal", location:"Indio, CA", tees:[
+    { color:"Blue",   front9:{rating:34.8,slope:122,par:36}, back9:{rating:34.8,slope:122,par:36} },
+    { color:"White",  front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Gold",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+    { color:"Red",    front9:{rating:29.8,slope:98,par:36},  back9:{rating:29.8,slope:98,par:36} },
+  ]},
+  { name:"Heritage Palms Golf Club", location:"Indio, CA", tees:[
+    { color:"Blue",   front9:{rating:35.2,slope:124,par:36}, back9:{rating:35.2,slope:124,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:108,par:36}, back9:{rating:31.8,slope:108,par:36} },
+    { color:"Red",    front9:{rating:30.0,slope:100,par:36}, back9:{rating:30.0,slope:100,par:36} },
+  ]},
+  { name:"Eagle Falls Golf Course", location:"Coachella, CA", tees:[
+    { color:"Black",  front9:{rating:36.5,slope:132,par:36}, back9:{rating:36.5,slope:132,par:36} },
+    { color:"Blue",   front9:{rating:35.2,slope:124,par:36}, back9:{rating:35.2,slope:124,par:36} },
+    { color:"White",  front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Gold",   front9:{rating:31.8,slope:108,par:36}, back9:{rating:31.8,slope:108,par:36} },
+    { color:"Red",    front9:{rating:30.0,slope:100,par:36}, back9:{rating:30.0,slope:100,par:36} },
+  ]},
+  { name:"Woodhaven Country Club", location:"Palm Desert, CA", tees:[
+    { color:"Blue",   front9:{rating:34.5,slope:118,par:35}, back9:{rating:34.5,slope:118,par:35} },
+    { color:"White",  front9:{rating:33.2,slope:112,par:35}, back9:{rating:33.2,slope:112,par:35} },
+    { color:"Red",    front9:{rating:31.0,slope:104,par:35}, back9:{rating:31.0,slope:104,par:35} },
+  ]},
+  { name:"Trilogy at La Quinta", location:"La Quinta, CA", tees:[
+    { color:"Black",  front9:{rating:36.0,slope:130,par:36}, back9:{rating:36.0,slope:130,par:36} },
+    { color:"Blue",   front9:{rating:34.8,slope:122,par:36}, back9:{rating:34.8,slope:122,par:36} },
+    { color:"White",  front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Gold",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+    { color:"Red",    front9:{rating:29.8,slope:98,par:36},  back9:{rating:29.8,slope:98,par:36} },
+  ]},
+  { name:"Bermuda Dunes Country Club", location:"Bermuda Dunes, CA", tees:[
+    { color:"Blue",   front9:{rating:35.5,slope:126,par:36}, back9:{rating:35.5,slope:126,par:36} },
+    { color:"White",  front9:{rating:34.2,slope:118,par:36}, back9:{rating:34.2,slope:118,par:36} },
+    { color:"Gold",   front9:{rating:32.2,slope:110,par:36}, back9:{rating:32.2,slope:110,par:36} },
+    { color:"Red",    front9:{rating:30.5,slope:102,par:36}, back9:{rating:30.5,slope:102,par:36} },
+  ]},
+  { name:"The Springs Club", location:"Rancho Mirage, CA", tees:[
+    { color:"Blue",   front9:{rating:36.0,slope:129,par:36}, back9:{rating:36.0,slope:129,par:36} },
+    { color:"White",  front9:{rating:34.5,slope:120,par:36}, back9:{rating:34.5,slope:120,par:36} },
+    { color:"Gold",   front9:{rating:32.5,slope:112,par:36}, back9:{rating:32.5,slope:112,par:36} },
+    { color:"Red",    front9:{rating:30.8,slope:104,par:36}, back9:{rating:30.8,slope:104,par:36} },
+  ]},
+  { name:"Oasis Country Club", location:"Palm Desert, CA", tees:[
+    { color:"Blue",   front9:{rating:32.0,slope:108,par:30}, back9:{rating:32.0,slope:108,par:30} },
+    { color:"White",  front9:{rating:31.0,slope:102,par:30}, back9:{rating:31.0,slope:102,par:30} },
+    { color:"Red",    front9:{rating:29.5,slope:96,par:30},  back9:{rating:29.5,slope:96,par:30} },
+  ]},
+  // ── San Luis Obispo / Central Coast ─────────────────────────────────────────
+  { name:"Morro Bay Golf Course", location:"Morro Bay, CA", tees:[
+    { color:"Black", front9:{rating:35.4,slope:119,par:36}, back9:{rating:35.4,slope:119,par:35} },
+    { color:"Blue",  front9:{rating:34.5,slope:116,par:36}, back9:{rating:34.5,slope:116,par:35} },
+    { color:"White", front9:{rating:33.0,slope:110,par:36}, back9:{rating:33.0,slope:110,par:35} },
+    { color:"Red",   front9:{rating:31.0,slope:103,par:36}, back9:{rating:31.0,slope:103,par:35} },
+  ]},
+  { name:"Dairy Creek Golf Course", location:"San Luis Obispo, CA", tees:[
+    { color:"Blue",  front9:{rating:34.8,slope:120,par:36}, back9:{rating:34.8,slope:120,par:36} },
+    { color:"White", front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+  ]},
+  { name:"Chalk Mountain Golf Course", location:"Atascadero, CA", tees:[
+    { color:"Blue",  front9:{rating:35.5,slope:122,par:36}, back9:{rating:35.5,slope:122,par:36} },
+    { color:"White", front9:{rating:34.2,slope:116,par:36}, back9:{rating:34.2,slope:116,par:36} },
+    { color:"Red",   front9:{rating:32.0,slope:108,par:36}, back9:{rating:32.0,slope:108,par:36} },
+  ]},
+  { name:"Hunter Ranch Golf Course", location:"Paso Robles, CA", tees:[
+    { color:"Black", front9:{rating:36.4,slope:138,par:36}, back9:{rating:36.3,slope:138,par:36} },
+    { color:"Blue",  front9:{rating:35.2,slope:130,par:36}, back9:{rating:35.0,slope:130,par:36} },
+    { color:"White", front9:{rating:33.8,slope:120,par:36}, back9:{rating:33.5,slope:120,par:36} },
+    { color:"Gold",  front9:{rating:32.0,slope:112,par:36}, back9:{rating:31.8,slope:112,par:36} },
+    { color:"Red",   front9:{rating:30.2,slope:104,par:36}, back9:{rating:30.0,slope:104,par:36} },
+  ]},
+  { name:"Avila Beach Golf Resort", location:"Avila Beach, CA", tees:[
+    { color:"Blue",  front9:{rating:34.3,slope:118,par:36}, back9:{rating:34.2,slope:118,par:35} },
+    { color:"White", front9:{rating:32.8,slope:112,par:36}, back9:{rating:32.5,slope:112,par:35} },
+    { color:"Red",   front9:{rating:30.5,slope:104,par:36}, back9:{rating:30.2,slope:104,par:35} },
+  ]},
+  { name:"Paso Robles Golf Club", location:"Paso Robles, CA", tees:[
+    { color:"Blue",  front9:{rating:35.0,slope:122,par:36}, back9:{rating:35.0,slope:122,par:36} },
+    { color:"White", front9:{rating:33.5,slope:116,par:36}, back9:{rating:33.5,slope:116,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:108,par:36}, back9:{rating:31.5,slope:108,par:36} },
+  ]},
+  { name:"Monarch Dunes Golf Club – Challenge", location:"Nipomo, CA", tees:[
+    { color:"Black", front9:{rating:36.5,slope:132,par:36}, back9:{rating:36.5,slope:132,par:36} },
+    { color:"Blue",  front9:{rating:35.2,slope:124,par:36}, back9:{rating:35.2,slope:124,par:36} },
+    { color:"White", front9:{rating:33.8,slope:116,par:36}, back9:{rating:33.8,slope:116,par:36} },
+    { color:"Gold",  front9:{rating:32.0,slope:110,par:36}, back9:{rating:32.0,slope:110,par:36} },
+    { color:"Red",   front9:{rating:30.2,slope:102,par:36}, back9:{rating:30.2,slope:102,par:36} },
+  ]},
+  { name:"Monarch Dunes Golf Club – Monarch", location:"Nipomo, CA", tees:[
+    { color:"Blue",  front9:{rating:34.5,slope:118,par:36}, back9:{rating:34.5,slope:118,par:36} },
+    { color:"White", front9:{rating:33.2,slope:112,par:36}, back9:{rating:33.2,slope:112,par:36} },
+    { color:"Gold",  front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+    { color:"Red",   front9:{rating:29.8,slope:98,par:36},  back9:{rating:29.8,slope:98,par:36} },
+  ]},
+  { name:"Cypress Ridge Golf Course", location:"Arroyo Grande, CA", tees:[
+    { color:"Black", front9:{rating:36.2,slope:130,par:36}, back9:{rating:36.2,slope:130,par:36} },
+    { color:"Blue",  front9:{rating:35.0,slope:122,par:36}, back9:{rating:35.0,slope:122,par:36} },
+    { color:"White", front9:{rating:33.5,slope:114,par:36}, back9:{rating:33.5,slope:114,par:36} },
+    { color:"Gold",  front9:{rating:31.5,slope:106,par:36}, back9:{rating:31.5,slope:106,par:36} },
+    { color:"Red",   front9:{rating:29.8,slope:98,par:36},  back9:{rating:29.8,slope:98,par:36} },
+  ]},
+  { name:"Sea Pines Golf Resort", location:"Los Osos, CA", tees:[
+    { color:"Blue",  front9:{rating:33.8,slope:114,par:35}, back9:{rating:33.8,slope:114,par:35} },
+    { color:"White", front9:{rating:32.5,slope:108,par:35}, back9:{rating:32.5,slope:108,par:35} },
+    { color:"Red",   front9:{rating:30.5,slope:100,par:35}, back9:{rating:30.5,slope:100,par:35} },
+  ]},
+  { name:"Pismo State Beach Golf Course", location:"Grover Beach, CA", tees:[
+    { color:"Blue",  front9:{rating:33.5,slope:112,par:35}, back9:{rating:33.5,slope:112,par:35} },
+    { color:"White", front9:{rating:32.2,slope:106,par:35}, back9:{rating:32.2,slope:106,par:35} },
+    { color:"Red",   front9:{rating:30.2,slope:98,par:35},  back9:{rating:30.2,slope:98,par:35} },
+  ]},
+  { name:"San Luis Obispo Country Club", location:"San Luis Obispo, CA", tees:[
+    { color:"Blue",  front9:{rating:36.0,slope:133,par:36}, back9:{rating:36.0,slope:133,par:36} },
+    { color:"White", front9:{rating:34.5,slope:124,par:36}, back9:{rating:34.5,slope:124,par:36} },
+    { color:"Red",   front9:{rating:32.2,slope:116,par:36}, back9:{rating:32.2,slope:116,par:36} },
+  ]},
+  { name:"Links Course at Paso Robles", location:"Paso Robles, CA", tees:[
+    { color:"Blue",  front9:{rating:34.8,slope:118,par:36}, back9:{rating:34.8,slope:118,par:36} },
+    { color:"White", front9:{rating:33.5,slope:112,par:36}, back9:{rating:33.5,slope:112,par:36} },
+    { color:"Red",   front9:{rating:31.5,slope:104,par:36}, back9:{rating:31.5,slope:104,par:36} },
+  ]},
+];
+
 function CourseSearch({ onSelect }) {
-  const [query, setQuery]       = useState("");
-  const [results, setResults]   = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
-
-  const search = async () => {
-    if (query.trim().length < 3) return;
-    setSearching(true); setSearched(false);
-    try {
-      const resp = await fetch("/api/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim() })
-      });
-      const data = await resp.json();
-      setResults(data.courses || []);
-    } catch { setResults([]); }
-    setSearching(false); setSearched(true);
-  };
-
-  const handleKey = (e) => { if (e.key === "Enter") search(); };
+  const [query, setQuery]   = useState("");
+  const [results, setResults] = useState([]);
+  const [selected, setSelected] = useState(null);
 
   const TEE_COLORS = { black:"#222",blue:"#1a6db5",white:"#ccc",gold:"#c9973a",red:"#c0392b",green:"#28b360",silver:"#aaa" };
 
+  const search = (q) => {
+    setQuery(q);
+    setSelected(null);
+    if (q.trim().length < 2) { setResults([]); return; }
+    const lower = q.toLowerCase();
+    const matches = SOCAL_COURSES.filter(c =>
+      c.name.toLowerCase().includes(lower) ||
+      c.location.toLowerCase().includes(lower)
+    ).slice(0, 6);
+    setResults(matches);
+  };
+
   return (
     <div className="card card2" style={{ marginBottom:16 }}>
-      <div className="lbl" style={{ marginBottom:8 }}>🔍 Search Course</div>
-      <div style={{ display:"flex",gap:8 }}>
-        <input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={handleKey} placeholder="Type course name..." style={{ flex:1 }} />
-        <button className="btn bp bsm" onClick={search} disabled={searching||query.length<3}>
-          {searching ? "..." : "Search"}
-        </button>
-      </div>
-      {searched && results.length === 0 && (
-        <div className="tm mt8">No courses found — enter details manually below.</div>
-      )}
+      <div className="lbl" style={{ marginBottom:8 }}>🔍 Find Your Course</div>
+      <input
+        value={query}
+        onChange={e => search(e.target.value)}
+        placeholder="Type course name (e.g. Coyote Hills, Tustin Ranch...)"
+      />
       {results.length > 0 && (
-        <div style={{ marginTop:12 }}>
-          {results.map(c => (
-            <div key={c.id} style={{ background:"var(--deep)",borderRadius:8,padding:"12px 14px",marginBottom:8,border:"1px solid var(--border)" }}>
+        <div style={{ marginTop:10 }}>
+          {results.map((c, ci) => (
+            <div key={ci} style={{ background:"var(--deep)",borderRadius:8,padding:"12px 14px",marginBottom:8,border:"1px solid var(--border)" }}>
               <div style={{ fontWeight:600,marginBottom:2 }}>{c.name}</div>
-              {c.location && <div className="tm" style={{ fontSize:12,marginBottom:8 }}>{c.location}</div>}
-              {c.tees?.length > 0 && (
-                <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
-                  {c.tees.map((t,i) => {
-                    const bg = TEE_COLORS[t.color?.toLowerCase()] || "#888";
-                    return (
-                      <button key={i} onClick={() => onSelect(c, t)} style={{ display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,border:"1px solid var(--border)",background:"var(--card)",cursor:"pointer" }}>
-                        <span style={{ width:10,height:10,borderRadius:"50%",background:bg,display:"inline-block" }} />
-                        <span style={{ color:"var(--cream)",fontSize:12,fontWeight:600 }}>{t.color}</span>
-                        {t.front9 && <span style={{ color:"var(--muted)",fontSize:11 }}>{t.front9.rating}/{t.front9.slope}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="tm" style={{ fontSize:12,marginBottom:8 }}>{c.location}</div>
+              <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                {c.tees.map((t, ti) => {
+                  const bg = TEE_COLORS[t.color?.toLowerCase()] || "#888";
+                  return (
+                    <button key={ti} onClick={() => { onSelect(c, t); setQuery(c.name); setResults([]); }} style={{ display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,border:"1px solid var(--border)",background:"var(--card2)",cursor:"pointer" }}>
+                      <span style={{ width:10,height:10,borderRadius:"50%",background:bg,flexShrink:0 }} />
+                      <span style={{ color:"var(--cream)",fontSize:12,fontWeight:600 }}>{t.color}</span>
+                      <span style={{ color:"var(--muted)",fontSize:11 }}>{t.front9?.rating}/{t.front9?.slope}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
+      )}
+      {query.length >= 2 && results.length === 0 && (
+        <div className="tm mt8">Course not found — enter details manually below. <span style={{ color:"var(--gl)" }}>We can add it to the list anytime!</span></div>
       )}
     </div>
   );
