@@ -810,6 +810,71 @@ function ScorecardScanner({ onFill }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST ROUND  (writes directly to Firestore)
 // ─────────────────────────────────────────────────────────────────────────────
+function CourseSearch({ onSelect }) {
+  const [query, setQuery]       = useState("");
+  const [results, setResults]   = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  const search = async () => {
+    if (query.trim().length < 3) return;
+    setSearching(true); setSearched(false);
+    try {
+      const resp = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query.trim() })
+      });
+      const data = await resp.json();
+      setResults(data.courses || []);
+    } catch { setResults([]); }
+    setSearching(false); setSearched(true);
+  };
+
+  const handleKey = (e) => { if (e.key === "Enter") search(); };
+
+  const TEE_COLORS = { black:"#222",blue:"#1a6db5",white:"#ccc",gold:"#c9973a",red:"#c0392b",green:"#28b360",silver:"#aaa" };
+
+  return (
+    <div className="card card2" style={{ marginBottom:16 }}>
+      <div className="lbl" style={{ marginBottom:8 }}>🔍 Search Course</div>
+      <div style={{ display:"flex",gap:8 }}>
+        <input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={handleKey} placeholder="Type course name..." style={{ flex:1 }} />
+        <button className="btn bp bsm" onClick={search} disabled={searching||query.length<3}>
+          {searching ? "..." : "Search"}
+        </button>
+      </div>
+      {searched && results.length === 0 && (
+        <div className="tm mt8">No courses found — enter details manually below.</div>
+      )}
+      {results.length > 0 && (
+        <div style={{ marginTop:12 }}>
+          {results.map(c => (
+            <div key={c.id} style={{ background:"var(--deep)",borderRadius:8,padding:"12px 14px",marginBottom:8,border:"1px solid var(--border)" }}>
+              <div style={{ fontWeight:600,marginBottom:2 }}>{c.name}</div>
+              {c.location && <div className="tm" style={{ fontSize:12,marginBottom:8 }}>{c.location}</div>}
+              {c.tees?.length > 0 && (
+                <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                  {c.tees.map((t,i) => {
+                    const bg = TEE_COLORS[t.color?.toLowerCase()] || "#888";
+                    return (
+                      <button key={i} onClick={() => onSelect(c, t)} style={{ display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,border:"1px solid var(--border)",background:"var(--card)",cursor:"pointer" }}>
+                        <span style={{ width:10,height:10,borderRadius:"50%",background:bg,display:"inline-block" }} />
+                        <span style={{ color:"var(--cream)",fontSize:12,fontWeight:600 }}>{t.color}</span>
+                        {t.front9 && <span style={{ color:"var(--muted)",fontSize:11 }}>{t.front9.rating}/{t.front9.slope}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PostRound({ state, fsUpdate, cp }) {
   const [matchupId, setMatchupId] = useState("");
   const [course, setCourse]       = useState("");
@@ -825,8 +890,20 @@ function PostRound({ state, fsUpdate, cp }) {
   const [msg, setMsg]             = useState("");
   const [err, setErr]             = useState("");
   const [saving, setSaving]       = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   if (!cp) return null;
+
+  const handleCourseSelect = (courseData, tee) => {
+    setCourse(courseData.name);
+    setTeeColor(tee.color);
+    const nine = nineUsed === "Back 9" ? tee.back9 : tee.front9;
+    if (nine) {
+      setRating(nine.rating?.toString() || "");
+      setSlope(nine.slope?.toString() || "");
+      setPar(nine.par?.toString() || "36");
+    }
+  };
 
   const handleScanFill = ({ course:c, teeColor:tc, rating:r, slope:sl, par:p, gross:g, holeScores:hs, nineUsed:nu }) => {
     if (c) setCourse(c); if (tc) setTeeColor(tc); if (r) setRating(r);
@@ -835,6 +912,7 @@ function PostRound({ state, fsUpdate, cp }) {
       setHoleScores(hs.map(s => s?.toString() || "")); setHoleMode("holes");
       setGross(hs.reduce((a,b) => a+(parseInt(b)||0),0).toString());
     } else if (g) { setGross(g); }
+    setShowScanner(false);
   };
 
   const holesSum = holeScores.reduce((a,b) => a+(parseInt(b)||0), 0);
@@ -870,13 +948,8 @@ function PostRound({ state, fsUpdate, cp }) {
     };
 
     try {
-      // Save round
       await fsUpdate.addRound(round);
-
-      // Update player handicap
       await fsUpdate.updatePlayer(cp.id, { differentials: newDiffs, handicapIndex: newHcp });
-
-      // Check if matchup is now complete
       if (matchupId) {
         const matchup = state.matchups.find(m => m.id === matchupId);
         if (matchup) {
@@ -895,13 +968,12 @@ function PostRound({ state, fsUpdate, cp }) {
             if (tie) {
               const pl1 = state.players.find(p => p.id === cp.id);
               const pl2 = state.players.find(p => p.id === otherId);
-              if (pl1) await fsUpdate.updatePlayer(cp.id,    { ties: (pl1.ties||0)+1 });
-              if (pl2) await fsUpdate.updatePlayer(otherId,  { ties: (pl2.ties||0)+1 });
+              if (pl1) await fsUpdate.updatePlayer(cp.id,   { ties: (pl1.ties||0)+1 });
+              if (pl2) await fsUpdate.updatePlayer(otherId, { ties: (pl2.ties||0)+1 });
             }
           }
         }
       }
-
       const statusMsg = newHcp !== null ? `Handicap index: ${newHcp}.` : `${newDiffs.length}/3 rounds toward your handicap.`;
       setMsg(`Round posted! Diff: ${diff.toFixed(1)}. ${statusMsg}`);
       setCourse(""); setTeeColor(""); setRating(""); setSlope(""); setGross("");
@@ -918,7 +990,19 @@ function PostRound({ state, fsUpdate, cp }) {
     <div>
       <div className="ptitle">Post a Round</div>
       <div className="psub">Your handicap index updates automatically with each round</div>
-      <ScorecardScanner onFill={handleScanFill} />
+
+      {/* Course Search — primary */}
+      <CourseSearch onSelect={handleCourseSelect} />
+
+      {/* Scanner — secondary, collapsed by default */}
+      <div style={{ marginBottom:16 }}>
+        <button className="btn bgh bsm" onClick={() => setShowScanner(v=>!v)}>
+          {showScanner ? "▲ Hide Scanner" : "📷 Scan Scorecard Instead"}
+        </button>
+        {showScanner && <div className="mt8"><ScorecardScanner onFill={handleScanFill} /></div>}
+      </div>
+
+      {/* HCP status */}
       <div className="card card2" style={{ marginBottom:24 }}>
         <div className="fb">
           <div>
@@ -937,6 +1021,7 @@ function PostRound({ state, fsUpdate, cp }) {
           </div>
         )}
       </div>
+
       <div className="card">
         {openMatchups.length > 0 && (
           <div className="fg mb16">
@@ -1001,6 +1086,7 @@ function PostRound({ state, fsUpdate, cp }) {
         {msg && <div className="ok">{msg}</div>}
         <div className="mt24"><button className="btn bp" onClick={submit} disabled={saving}>{saving?"Saving...":"Submit Round"}</button></div>
       </div>
+
       {myRounds.length > 0 && (
         <>
           <div className="stitle mt24">My Round History</div>
