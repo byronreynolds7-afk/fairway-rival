@@ -1454,7 +1454,7 @@ function CourseSearch({ onSelect }) {
 }
 
 function PostRound({ state, fsUpdate, cp }) {
-  const [matchupId, setMatchupId] = useState("");
+  const [selectedMatchupIds, setSelectedMatchupIds] = useState([]);
   const [course, setCourse]       = useState("");
   const [teeColor, setTeeColor]   = useState("");
   const [rating, setRating]       = useState("");
@@ -1519,8 +1519,14 @@ function PostRound({ state, fsUpdate, cp }) {
   const openMatchups = state.matchups.filter(m => {
     const isMe   = m.player1Id === cp.id || m.player2Id === cp.id;
     const posted = state.rounds.some(r => r.matchupId === m.id && r.playerId === cp.id);
-    return isMe && !posted;
+    return isMe && !posted && m.status !== "complete";
   });
+
+  const toggleMatchup = (id) => {
+    setSelectedMatchupIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
 
   const prevDiff = effectiveGross && rating && slope ? calcDifferential(effectiveGross, parseFloat(rating), parseFloat(slope)||113) : null;
   const prevCH   = cp.handicapIndex !== null && slope && rating ? calcCourseHandicap(cp.handicapIndex, parseFloat(slope), parseFloat(rating), parseFloat(par)) : null;
@@ -1540,8 +1546,10 @@ function PostRound({ state, fsUpdate, cp }) {
     const courseHcp = newHcp !== null ? calcCourseHandicap(newHcp, sl, cr, p) : null;
     const netScore  = courseHcp !== null ? g - courseHcp : null;
 
+    const roundId = uid();
     const round = {
-      id: uid(), playerId: cp.id, matchupId: matchupId || null,
+      id: roundId, playerId: cp.id, matchupId: selectedMatchupIds[0] || null,
+      matchupIds: selectedMatchupIds,
       course, teeColor, nineUsed, rating: cr, slope: sl, par: p,
       grossScore: rawGross, adjustedGross: g, netScore,
       courseHandicap: courseHcp, differential: diff,
@@ -1551,37 +1559,42 @@ function PostRound({ state, fsUpdate, cp }) {
       date,
     };
 
+    const resolveMatchup = async (mId) => {
+      const matchup = state.matchups.find(m => m.id === mId);
+      if (!matchup) return;
+      const otherId    = matchup.player1Id === cp.id ? matchup.player2Id : matchup.player1Id;
+      const otherRound = state.rounds.find(r => r.matchupIds?.includes(mId) || r.matchupId === mId);
+      const otherNet   = otherRound?.playerId === otherId ? otherRound.netScore : null;
+      if (otherNet !== null && netScore !== null) {
+        let wId = null, lId = null, tie = false;
+        if (netScore < otherNet)       { wId = cp.id; lId = otherId; }
+        else if (otherNet < netScore)  { wId = otherId; lId = cp.id; }
+        else { tie = true; }
+        await fsUpdate.updateMatchup(mId, { status: "complete" });
+        const winner = state.players.find(p => p.id === wId);
+        const loser  = state.players.find(p => p.id === lId);
+        if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
+        if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
+        if (tie) {
+          const pl1 = state.players.find(p => p.id === cp.id);
+          const pl2 = state.players.find(p => p.id === otherId);
+          if (pl1) await fsUpdate.updatePlayer(cp.id,   { ties: (pl1.ties||0)+1 });
+          if (pl2) await fsUpdate.updatePlayer(otherId, { ties: (pl2.ties||0)+1 });
+        }
+      }
+    };
+
     try {
       await fsUpdate.addRound(round);
       await fsUpdate.updatePlayer(cp.id, { differentials: newDiffs, handicapIndex: newHcp });
-      if (matchupId) {
-        const matchup = state.matchups.find(m => m.id === matchupId);
-        if (matchup) {
-          const otherId    = matchup.player1Id === cp.id ? matchup.player2Id : matchup.player1Id;
-          const otherRound = state.rounds.find(r => r.matchupId === matchupId && r.playerId === otherId);
-          if (otherRound && netScore !== null && otherRound.netScore !== null) {
-            let wId = null, lId = null, tie = false;
-            if (netScore < otherRound.netScore) { wId = cp.id; lId = otherId; }
-            else if (otherRound.netScore < netScore) { wId = otherId; lId = cp.id; }
-            else { tie = true; }
-            await fsUpdate.updateMatchup(matchupId, { status: "complete" });
-            const winner = state.players.find(p => p.id === wId);
-            const loser  = state.players.find(p => p.id === lId);
-            if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
-            if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
-            if (tie) {
-              const pl1 = state.players.find(p => p.id === cp.id);
-              const pl2 = state.players.find(p => p.id === otherId);
-              if (pl1) await fsUpdate.updatePlayer(cp.id,   { ties: (pl1.ties||0)+1 });
-              if (pl2) await fsUpdate.updatePlayer(otherId, { ties: (pl2.ties||0)+1 });
-            }
-          }
-        }
+      for (const mId of selectedMatchupIds) {
+        await resolveMatchup(mId);
       }
       const statusMsg = newHcp !== null ? `Handicap index: ${newHcp}.` : `${newDiffs.length}/3 rounds toward your handicap.`;
-      setMsg(`Round posted! Diff: ${diff.toFixed(1)}. ${statusMsg}`);
+      const matchupMsg = selectedMatchupIds.length > 0 ? ` Linked to ${selectedMatchupIds.length} matchup${selectedMatchupIds.length>1?"s":""}.` : "";
+      setMsg(`Round posted! Diff: ${diff.toFixed(1)}.${matchupMsg} ${statusMsg}`);
       setCourse(""); setTeeColor(""); setRating(""); setSlope("");
-      setHoleScores(Array(9).fill("")); setHolePars(Array(9).fill("4")); setMatchupId("");
+      setHoleScores(Array(9).fill("")); setHolePars(Array(9).fill("4")); setSelectedMatchupIds([]);
     } catch (e) {
       setErr("Failed to save round. Check your connection.");
     }
@@ -1628,15 +1641,25 @@ function PostRound({ state, fsUpdate, cp }) {
 
       <div className="card">
         {openMatchups.length > 0 && (
-          <div className="fg mb16">
-            <div className="lbl">Link to Matchup</div>
-            <select value={matchupId} onChange={e => setMatchupId(e.target.value)}>
-              <option value="">— Practice / no matchup —</option>
-              {openMatchups.map(m => {
-                const opp = state.players.find(p => p.id !== cp.id && (p.id===m.player1Id||p.id===m.player2Id));
-                return <option key={m.id} value={m.id}>vs {opp?.name} · {m.roundDate ? new Date(m.roundDate).toLocaleDateString() : "Open"}</option>;
-              })}
-            </select>
+          <div className="mb16">
+            <div className="lbl" style={{ marginBottom:8 }}>Link to Matchup(s)</div>
+            <div className="tm" style={{ marginBottom:8,fontSize:12 }}>Select all matchups this round should count for</div>
+            {openMatchups.map(m => {
+              const opp = state.players.find(p => p.id !== cp.id && (p.id===m.player1Id||p.id===m.player2Id));
+              const checked = selectedMatchupIds.includes(m.id);
+              return (
+                <div key={m.id} onClick={() => toggleMatchup(m.id)}
+                  style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:6,borderRadius:8,border:`1px solid ${checked?"var(--gl)":"var(--border)"}`,background:checked?"rgba(40,179,96,0.08)":"var(--deep)",cursor:"pointer" }}>
+                  <div style={{ width:18,height:18,borderRadius:4,border:`2px solid ${checked?"var(--gl)":"var(--muted)"}`,background:checked?"var(--gl)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                    {checked && <span style={{ color:"var(--deep)",fontSize:12,fontWeight:700 }}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600,fontSize:14 }}>vs {opp?.name}</div>
+                    {m.roundDate && <div className="tm" style={{ fontSize:12 }}>{new Date(m.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
         <div className="fr">
@@ -2168,7 +2191,7 @@ function CommLinkRound({ state, fsUpdate }) {
   const { players, rounds, matchups } = state;
   const [playerId, setPlayerId] = useState("");
   const [roundId, setRoundId]   = useState("");
-  const [matchupId, setMatchupId] = useState("");
+  const [selectedLinkIds, setSelectedLinkIds] = useState([]);
   const [msg, setMsg]           = useState("");
   const [err, setErr]           = useState("");
   const [saving, setSaving]     = useState(false);
@@ -2185,42 +2208,41 @@ function CommLinkRound({ state, fsUpdate }) {
 
   const save = async () => {
     setErr(""); setMsg(""); setSaving(true);
-    if (!playerId || !roundId || !matchupId) { setErr("Select a player, round, and matchup."); setSaving(false); return; }
+    if (!playerId || !roundId || selectedLinkIds.length === 0) { setErr("Select a player, round, and at least one matchup."); setSaving(false); return; }
 
     const round = rounds.find(r => r.id === roundId);
-    const matchup = matchups.find(m => m.id === matchupId);
-    if (!round || !matchup) { setErr("Round or matchup not found."); setSaving(false); return; }
+    if (!round) { setErr("Round not found."); setSaving(false); return; }
 
     try {
-      // Link the round to the matchup
-      await fsUpdate.updateRound(roundId, { matchupId });
+      await fsUpdate.updateRound(roundId, { matchupId: selectedLinkIds[0], matchupIds: selectedLinkIds });
 
-      // Check if the other player has already posted — if so, resolve the matchup
-      const otherId = matchup.player1Id === playerId ? matchup.player2Id : matchup.player1Id;
-      const otherRound = rounds.find(r => r.matchupId === matchupId && r.playerId === otherId);
-
-      if (otherRound && round.netScore !== null && otherRound.netScore !== null) {
-        let wId = null, lId = null, tie = false;
-        if (round.netScore < otherRound.netScore)       { wId = playerId; lId = otherId; }
-        else if (otherRound.netScore < round.netScore)  { wId = otherId;  lId = playerId; }
-        else { tie = true; }
-
-        await fsUpdate.updateMatchup(matchupId, { status: "complete" });
-        const winner = players.find(p => p.id === wId);
-        const loser  = players.find(p => p.id === lId);
-        if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
-        if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
-        if (tie) {
-          const pl1 = players.find(p => p.id === playerId);
-          const pl2 = players.find(p => p.id === otherId);
-          if (pl1) await fsUpdate.updatePlayer(playerId, { ties: (pl1.ties||0)+1 });
-          if (pl2) await fsUpdate.updatePlayer(otherId,  { ties: (pl2.ties||0)+1 });
+      let resolved = 0;
+      for (const mId of selectedLinkIds) {
+        const matchup = matchups.find(m => m.id === mId);
+        if (!matchup) continue;
+        const otherId    = matchup.player1Id === playerId ? matchup.player2Id : matchup.player1Id;
+        const otherRound = rounds.find(r => (r.matchupIds?.includes(mId) || r.matchupId === mId) && r.playerId === otherId);
+        if (otherRound && round.netScore !== null && otherRound.netScore !== null) {
+          let wId = null, lId = null, tie = false;
+          if (round.netScore < otherRound.netScore)       { wId = playerId; lId = otherId; }
+          else if (otherRound.netScore < round.netScore)  { wId = otherId;  lId = playerId; }
+          else { tie = true; }
+          await fsUpdate.updateMatchup(mId, { status: "complete" });
+          const winner = players.find(p => p.id === wId);
+          const loser  = players.find(p => p.id === lId);
+          if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
+          if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
+          if (tie) {
+            const pl1 = players.find(p => p.id === playerId);
+            const pl2 = players.find(p => p.id === otherId);
+            if (pl1) await fsUpdate.updatePlayer(playerId, { ties: (pl1.ties||0)+1 });
+            if (pl2) await fsUpdate.updatePlayer(otherId,  { ties: (pl2.ties||0)+1 });
+          }
+          resolved++;
         }
-        setMsg("Round linked and matchup resolved!");
-      } else {
-        setMsg("Round linked to matchup. Waiting on opponent's round.");
       }
-      setPlayerId(""); setRoundId(""); setMatchupId("");
+      setMsg(`Round linked to ${selectedLinkIds.length} matchup${selectedLinkIds.length>1?"s":""}${resolved>0?`, ${resolved} resolved!`:". Waiting on opponents."}`);
+      setPlayerId(""); setRoundId(""); setSelectedLinkIds([]);
     } catch(e) {
       setErr("Failed to link round. Check connection.");
     }
@@ -2255,17 +2277,27 @@ function CommLinkRound({ state, fsUpdate }) {
               }
             </div>
             {roundId && (
-              <div className="fg mb16">
-                <div className="lbl">Link to Matchup</div>
+              <div className="mb16">
+                <div className="lbl" style={{ marginBottom:8 }}>Link to Matchup(s)</div>
                 {openMatchups.length === 0
                   ? <div className="tm">No open matchups for this player.</div>
-                  : <select value={matchupId} onChange={e => setMatchupId(e.target.value)}>
-                      <option value="">— Select matchup —</option>
-                      {openMatchups.map(m => {
-                        const opp = players.find(p => p.id !== playerId && (p.id===m.player1Id||p.id===m.player2Id));
-                        return <option key={m.id} value={m.id}>vs {opp?.name}{m.roundDate ? ` · ${new Date(m.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : ""}</option>;
-                      })}
-                    </select>
+                  : openMatchups.map(m => {
+                      const opp = players.find(p => p.id !== playerId && (p.id===m.player1Id||p.id===m.player2Id));
+                      const checked = selectedLinkIds.includes(m.id);
+                      const toggle = () => setSelectedLinkIds(prev => prev.includes(m.id) ? prev.filter(x=>x!==m.id) : [...prev,m.id]);
+                      return (
+                        <div key={m.id} onClick={toggle}
+                          style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:6,borderRadius:8,border:`1px solid ${checked?"var(--gl)":"var(--border)"}`,background:checked?"rgba(40,179,96,0.08)":"var(--deep)",cursor:"pointer" }}>
+                          <div style={{ width:18,height:18,borderRadius:4,border:`2px solid ${checked?"var(--gl)":"var(--muted)"}`,background:checked?"var(--gl)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                            {checked && <span style={{ color:"var(--deep)",fontSize:12,fontWeight:700 }}>✓</span>}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight:600,fontSize:14 }}>vs {opp?.name}</div>
+                            {m.roundDate && <div className="tm" style={{ fontSize:12 }}>{new Date(m.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+                          </div>
+                        </div>
+                      );
+                    })
                 }
               </div>
             )}
@@ -2274,7 +2306,7 @@ function CommLinkRound({ state, fsUpdate }) {
         {err && <div className="err">{err}</div>}
         {msg && <div className="ok">{msg}</div>}
         <div className="mt16">
-          <button className="btn bp" onClick={save} disabled={saving || !playerId || !roundId || !matchupId}>
+          <button className="btn bp" onClick={save} disabled={saving || !playerId || !roundId || selectedLinkIds.length === 0}>
             {saving ? "Saving..." : "Link Round"}
           </button>
         </div>
