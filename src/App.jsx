@@ -1311,6 +1311,35 @@ const SOCAL_COURSES = [
     { color:"Red",   front9:{rating:31.5,slope:104,par:36}, back9:{rating:31.5,slope:104,par:36} },
   ]},
   // ── Added courses ───────────────────────────────────────────────────────────
+  { name:"Rancho Las Palmas CC – North/South", location:"Rancho Mirage, CA", tees:[
+    { color:"Black", front9:{rating:34.9,slope:124,par:36}, back9:{rating:34.9,slope:124,par:35} },
+    { color:"Blue",  front9:{rating:34.2,slope:121,par:36}, back9:{rating:34.2,slope:121,par:35} },
+    { color:"White", front9:{rating:33.8,slope:118,par:36}, back9:{rating:33.7,slope:118,par:35} },
+    { color:"Red",   front9:{rating:33.1,slope:115,par:36}, back9:{rating:33.1,slope:115,par:35} },
+  ]},
+  { name:"Rancho Las Palmas CC – South/West", location:"Rancho Mirage, CA", tees:[
+    { color:"Black", front9:{rating:35.2,slope:122,par:35}, back9:{rating:35.1,slope:122,par:35} },
+    { color:"Blue",  front9:{rating:34.4,slope:118,par:35}, back9:{rating:34.3,slope:118,par:35} },
+    { color:"White", front9:{rating:33.4,slope:114,par:35}, back9:{rating:33.4,slope:114,par:35} },
+    { color:"Red",   front9:{rating:32.4,slope:109,par:35}, back9:{rating:32.3,slope:109,par:35} },
+  ]},
+  { name:"Rancho Las Palmas CC – North/West", location:"Rancho Mirage, CA", tees:[
+    { color:"Black", front9:{rating:34.7,slope:121,par:36}, back9:{rating:34.6,slope:121,par:35} },
+    { color:"Blue",  front9:{rating:34.0,slope:118,par:36}, back9:{rating:33.9,slope:118,par:35} },
+    { color:"White", front9:{rating:33.2,slope:114,par:36}, back9:{rating:33.1,slope:114,par:35} },
+    { color:"Red",   front9:{rating:32.4,slope:110,par:36}, back9:{rating:32.3,slope:110,par:35} },
+  ]},
+  { name:"Marshall Canyon Golf Course", location:"La Verne, CA", tees:[
+    { color:"Blue",   front9:{rating:34.9,slope:123,par:36}, back9:{rating:34.9,slope:123,par:35} },
+    { color:"White",  front9:{rating:34.3,slope:120,par:36}, back9:{rating:34.2,slope:120,par:35} },
+    { color:"Silver", front9:{rating:32.6,slope:113,par:36}, back9:{rating:32.6,slope:113,par:35} },
+  ]},
+  { name:"Santa Anita Golf Course", location:"Arcadia, CA", tees:[
+    { color:"Championship", front9:{rating:35.2,slope:121,par:36}, back9:{rating:35.2,slope:121,par:35} },
+    { color:"Blue",         front9:{rating:35.1,slope:120,par:36}, back9:{rating:35.1,slope:120,par:35} },
+    { color:"White",        front9:{rating:34.4,slope:116,par:36}, back9:{rating:34.3,slope:116,par:35} },
+    { color:"Red",          front9:{rating:33.8,slope:113,par:36}, back9:{rating:33.7,slope:113,par:35} },
+  ]},
   { name:"The Havens Country Club", location:"Vista, CA", front9pars:[5,4,3,4,4,4,4,3,5], back9pars:[4,4,3,4,4,5,3,4,5], tees:[
     { color:"Black",      front9:{rating:36.4,slope:136,par:36}, back9:{rating:36.6,slope:136,par:36} },
     { color:"Blue",       front9:{rating:35.6,slope:133,par:36}, back9:{rating:35.7,slope:133,par:36} },
