@@ -1313,7 +1313,7 @@ const SOCAL_COURSES = [
   // ── Added courses ───────────────────────────────────────────────────────────
   { name:"The Havens Country Club", location:"Vista, CA", front9pars:[5,4,3,4,4,4,4,3,5], back9pars:[4,4,3,4,4,5,3,4,5], tees:[
     { color:"Black",      front9:{rating:36.4,slope:136,par:36}, back9:{rating:36.6,slope:136,par:36} },
-    { color:"Blue",       front9:{rating:35.7,slope:133,par:36}, back9:{rating:35.6,slope:133,par:36} },
+    { color:"Blue",       front9:{rating:35.6,slope:133,par:36}, back9:{rating:35.7,slope:133,par:36} },
     { color:"Blue/White", front9:{rating:35.3,slope:130,par:36}, back9:{rating:35.2,slope:130,par:36} },
     { color:"White",      front9:{rating:34.9,slope:128,par:36}, back9:{rating:34.8,slope:128,par:36} },
     { color:"Red",        front9:{rating:33.8,slope:122,par:36}, back9:{rating:33.7,slope:122,par:36} },
@@ -1925,6 +1925,181 @@ function HeadToHead({ state, cp }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // COMMISSIONER  (writes directly to Firestore)
 // ─────────────────────────────────────────────────────────────────────────────
+function CommPostRound({ state, fsUpdate }) {
+  const { players, matchups, rounds } = state;
+  const [targetPlayerId, setTargetPlayerId] = useState("");
+  const [matchupId, setMatchupId] = useState("");
+  const [course, setCourse]   = useState("");
+  const [teeColor, setTeeColor] = useState("");
+  const [rating, setRating]   = useState("");
+  const [slope, setSlope]     = useState("");
+  const [par, setPar]         = useState("36");
+  const [nineUsed, setNineUsed] = useState("Front 9");
+  const [holeScores, setHoleScores] = useState(Array(9).fill(""));
+  const [holePars, setHolePars]     = useState(Array(9).fill("4"));
+  const [date, setDate]       = useState(new Date().toISOString().slice(0, 10));
+  const [msg, setMsg]         = useState("");
+  const [err, setErr]         = useState("");
+  const [saving, setSaving]   = useState(false);
+
+  const targetPlayer = players.find(p => p.id === targetPlayerId);
+
+  const holeParsNum = holePars.map(p => parseInt(p) || 4);
+  const cappedScores = holeScores.map((s, i) => {
+    const raw = parseInt(s);
+    if (isNaN(raw) || raw === 0) return null;
+    return Math.min(raw, holeParsNum[i] + 3);
+  });
+  const holesSum = holeScores.reduce((a,b) => a+(parseInt(b)||0), 0);
+  const cappedSum = cappedScores.reduce((a,b) => a+(b||0), 0);
+  const filledCount = holeScores.filter(s => s !== "" && !isNaN(parseInt(s))).length;
+  const effectiveGross = cappedSum > 0 ? cappedSum : "";
+
+  const openMatchups = matchups.filter(m => {
+    const isPlayer = m.player1Id === targetPlayerId || m.player2Id === targetPlayerId;
+    const posted = rounds.some(r => r.matchupId === m.id && r.playerId === targetPlayerId);
+    return isPlayer && !posted;
+  });
+
+  const submit = async () => {
+    setErr(""); setMsg(""); setSaving(true);
+    if (!targetPlayerId) { setErr("Select a player."); setSaving(false); return; }
+    if (!course || !rating || !slope || filledCount < 9) { setErr("Fill in all fields and enter all 9 hole scores."); setSaving(false); return; }
+    const sl = parseFloat(slope), cr = parseFloat(rating), p = parseFloat(par);
+    if (isNaN(sl)||isNaN(cr)) { setErr("Invalid numbers."); setSaving(false); return; }
+
+    const g = effectiveGross;
+    const rawGross = holesSum;
+    const diff = calcDifferential(g, cr, sl);
+    const newDiffs = [...(targetPlayer.differentials || []), diff];
+    const newHcp = calcHandicapIndex(newDiffs);
+    const courseHcp = newHcp !== null ? calcCourseHandicap(newHcp, sl, cr, p) : null;
+    const netScore = courseHcp !== null ? g - courseHcp : null;
+
+    const round = {
+      id: uid(), playerId: targetPlayerId, matchupId: matchupId || null,
+      course, teeColor, nineUsed, rating: cr, slope: sl, par: p,
+      grossScore: rawGross, adjustedGross: g, netScore,
+      courseHandicap: courseHcp, differential: diff,
+      holeScores: holeScores.map(Number),
+      cappedScores, holePars: holeParsNum,
+      date, postedBy: "commissioner",
+    };
+
+    try {
+      await fsUpdate.addRound(round);
+      await fsUpdate.updatePlayer(targetPlayerId, { differentials: newDiffs, handicapIndex: newHcp });
+      if (matchupId) {
+        const matchup = matchups.find(m => m.id === matchupId);
+        if (matchup) {
+          const otherId = matchup.player1Id === targetPlayerId ? matchup.player2Id : matchup.player1Id;
+          const otherRound = rounds.find(r => r.matchupId === matchupId && r.playerId === otherId);
+          if (otherRound && netScore !== null && otherRound.netScore !== null) {
+            let wId = null, lId = null, tie = false;
+            if (netScore < otherRound.netScore) { wId = targetPlayerId; lId = otherId; }
+            else if (otherRound.netScore < netScore) { wId = otherId; lId = targetPlayerId; }
+            else { tie = true; }
+            await fsUpdate.updateMatchup(matchupId, { status: "complete" });
+            const winner = players.find(p => p.id === wId);
+            const loser  = players.find(p => p.id === lId);
+            if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
+            if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
+            if (tie) {
+              const pl1 = players.find(p => p.id === targetPlayerId);
+              const pl2 = players.find(p => p.id === otherId);
+              if (pl1) await fsUpdate.updatePlayer(targetPlayerId, { ties: (pl1.ties||0)+1 });
+              if (pl2) await fsUpdate.updatePlayer(otherId, { ties: (pl2.ties||0)+1 });
+            }
+          }
+        }
+      }
+      const statusMsg = newHcp !== null ? `Handicap index: ${newHcp}.` : `${newDiffs.length}/3 rounds toward handicap.`;
+      setMsg(`Round posted for ${targetPlayer.name}! Diff: ${diff.toFixed(1)}. ${statusMsg}`);
+      setCourse(""); setTeeColor(""); setRating(""); setSlope("");
+      setHoleScores(Array(9).fill("")); setHolePars(Array(9).fill("4")); setMatchupId("");
+    } catch(e) {
+      setErr("Failed to save. Check connection.");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <div className="stitle mt24">Post Round for a Player</div>
+      <div className="card">
+        <div className="fg mb16">
+          <div className="lbl">Player</div>
+          <select value={targetPlayerId} onChange={e => { setTargetPlayerId(e.target.value); setMatchupId(""); }}>
+            <option value="">— Select player —</option>
+            {players.map(p => <option key={p.id} value={p.id}>{p.name}{p.handicapIndex !== null ? ` (HCP ${p.handicapIndex})` : " (no HCP yet)"}</option>)}
+          </select>
+        </div>
+        {targetPlayerId && openMatchups.length > 0 && (
+          <div className="fg mb16">
+            <div className="lbl">Link to Matchup (optional)</div>
+            <select value={matchupId} onChange={e => setMatchupId(e.target.value)}>
+              <option value="">— Practice / no matchup —</option>
+              {openMatchups.map(m => {
+                const opp = players.find(p => p.id !== targetPlayerId && (p.id===m.player1Id||p.id===m.player2Id));
+                return <option key={m.id} value={m.id}>vs {opp?.name} · {m.roundDate ? new Date(m.roundDate).toLocaleDateString() : "Open"}</option>;
+              })}
+            </select>
+          </div>
+        )}
+        <div className="fr">
+          <div className="fg"><div className="lbl">Course Name</div><input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Glendora CC" /></div>
+          <div className="fg"><div className="lbl">Date Played</div><input type="date" value={date} onChange={e=>setDate(e.target.value)} /></div>
+        </div>
+        <div className="fr mt16">
+          <div className="fg"><div className="lbl">Tee Color</div><input value={teeColor} onChange={e=>setTeeColor(e.target.value)} placeholder="Blue, White..." /></div>
+          <div className="fg"><div className="lbl">9 Holes</div><select value={nineUsed} onChange={e=>setNineUsed(e.target.value)}><option>Front 9</option><option>Back 9</option></select></div>
+        </div>
+        <div className="fr mt16">
+          <div className="fg"><div className="lbl">Course Rating</div><input type="number" step="0.1" value={rating} onChange={e=>setRating(e.target.value)} placeholder="35.2" /></div>
+          <div className="fg"><div className="lbl">Slope</div><input type="number" value={slope} onChange={e=>setSlope(e.target.value)} placeholder="113" /></div>
+          <div className="fg"><div className="lbl">Par</div><select value={par} onChange={e=>setPar(e.target.value)}><option value="35">35</option><option value="36">36</option><option value="37">37</option></select></div>
+        </div>
+        <div className="mt16">
+          <div className="lbl" style={{ marginBottom:8 }}>Hole Scores</div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(9, 1fr)",gap:6 }}>
+            {holeScores.map((s,i) => {
+              const holeNum = nineUsed==="Back 9" ? i+10 : i+1;
+              const raw = parseInt(s);
+              const cap = holeParsNum[i] + 3;
+              const isCapped = !isNaN(raw) && raw > cap;
+              return (
+                <div key={i} style={{ textAlign:"center" }}>
+                  <div style={{ fontSize:10,color:"var(--muted)",marginBottom:2 }}>{holeNum} <span style={{color:"var(--muted)"}}>p{holeParsNum[i]}</span></div>
+                  <input type="number" value={s}
+                    onChange={e=>{ const n=[...holeScores];n[i]=e.target.value;setHoleScores(n); }}
+                    style={{ textAlign:"center",padding:"8px 4px",fontSize:14, borderColor:isCapped?"var(--gold)":undefined, color:isCapped?"var(--gold)":undefined }}
+                    placeholder="—" />
+                  {isCapped && <div style={{ fontSize:9,color:"var(--gold)",marginTop:2 }}>→{cap}</div>}
+                </div>
+              );
+            })}
+          </div>
+          {holesSum > 0 && <div className="mt8 tm">Total: <strong style={{color:"var(--cream)"}}>{holesSum}</strong>{cappedSum !== holesSum && <span style={{marginLeft:10}}>Adjusted: <strong style={{color:"var(--gold)"}}>{cappedSum}</strong></span>}</div>}
+          <div className="mt8">
+            <div className="lbl" style={{ marginBottom:6 }}>Hole Pars</div>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(9, 1fr)",gap:6 }}>
+              {holePars.map((p,i) => (
+                <select key={i} value={p} onChange={e=>{ const n=[...holePars];n[i]=e.target.value;setHolePars(n); }}
+                  style={{ padding:"4px 2px",fontSize:12,textAlign:"center" }}>
+                  <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                </select>
+              ))}
+            </div>
+          </div>
+        </div>
+        {err && <div className="err">{err}</div>}
+        {msg && <div className="ok">{msg}</div>}
+        <div className="mt16"><button className="btn bp" onClick={submit} disabled={saving}>{saving?"Saving...":"Post Round"}</button></div>
+      </div>
+    </div>
+  );
+}
+
 function Commissioner({ state, fsUpdate }) {
   const { players, matchups, rounds } = state;
   const [p1, setP1]     = useState("");
@@ -2013,6 +2188,7 @@ function Commissioner({ state, fsUpdate }) {
           </div>
         </div>
       ))}
+      <CommPostRound state={state} fsUpdate={fsUpdate} />
     </div>
   );
 }
