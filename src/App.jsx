@@ -2163,6 +2163,43 @@ function CommPostRound({ state, fsUpdate }) {
   );
 }
 
+function CommEditChallenge({ c, from, to, fsUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [msg, setMsg]         = useState(c.message || "");
+  const [saved, setSaved]     = useState(false);
+
+  const save = async () => {
+    await fsUpdate.updateChallenge(c.id, { message: msg.trim() || null });
+    setSaved(true); setEditing(false);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="csm" style={{ marginBottom:8 }}>
+      <div className="fb">
+        <div>
+          <div style={{ fontWeight:600 }}>{from?.name} <span className="tm">→</span> {to?.name}</div>
+          {c.roundDate && <div className="tm" style={{ fontSize:12 }}>{new Date(c.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+          {!editing && (
+            <div className="tm" style={{ fontStyle:"italic",marginTop:4 }}>
+              {c.message ? `"${c.message}"` : <span style={{color:"var(--muted)"}}>No trash talk</span>}
+            </div>
+          )}
+          {editing && (
+            <div style={{ display:"flex",gap:8,marginTop:8,alignItems:"center" }}>
+              <input value={msg} onChange={e=>setMsg(e.target.value)} maxLength={100} placeholder="Edit trash talk..." style={{flex:1}} />
+              <button className="btn bp bsm" onClick={save}>Save</button>
+              <button className="btn bgh bsm" onClick={()=>setEditing(false)}>Cancel</button>
+            </div>
+          )}
+          {saved && <div className="ok" style={{fontSize:12,marginTop:4}}>Saved!</div>}
+        </div>
+        {!editing && <button className="btn bgh bsm" onClick={()=>setEditing(true)}>Edit</button>}
+      </div>
+    </div>
+  );
+}
+
 function Commissioner({ state, fsUpdate }) {
   const { players, matchups, rounds } = state;
   const [p1, setP1]     = useState("");
@@ -2236,6 +2273,16 @@ function Commissioner({ state, fsUpdate }) {
           </div>
         );
       })}
+      <div className="stitle mt24">Pending Challenges</div>
+      {(() => {
+        const pending = state.challenges?.filter(c => c.status === "pending") || [];
+        if (pending.length === 0) return <div className="empty" style={{marginBottom:16}}>No pending challenges.</div>;
+        return pending.map(c => {
+          const from = players.find(p => p.id === c.fromPlayerId);
+          const to   = players.find(p => p.id === c.toPlayerId);
+          return <CommEditChallenge key={c.id} c={c} from={from} to={to} fsUpdate={fsUpdate} />;
+        });
+      })()}
       <div className="stitle mt24">Registered Players</div>
       {players.map(pl => (
         <div className="csm" key={pl.id}>
