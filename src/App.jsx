@@ -584,14 +584,16 @@ function MatchupCard({ m, state }) {
   const { players, rounds } = state;
   const p1 = players.find(p => p.id === m.player1Id);
   const p2 = players.find(p => p.id === m.player2Id);
-  const r1 = rounds.find(r => r.matchupId === m.id && r.playerId === m.player1Id);
-  const r2 = rounds.find(r => r.matchupId === m.id && r.playerId === m.player2Id);
+  const r1 = rounds.find(r => r.playerId === m.player1Id && (r.matchupIds?.includes(m.id) || r.matchupId === m.id));
+  const r2 = rounds.find(r => r.playerId === m.player2Id && (r.matchupIds?.includes(m.id) || r.matchupId === m.id));
   if (!p1 || !p2) return null;
 
-  const net1 = r1?.netScore ?? null;
-  const net2 = r2?.netScore ?? null;
-  const winner = net1 !== null && net2 !== null
-    ? net1 < net2 ? m.player1Id : net2 < net1 ? m.player2Id : "tie"
+  // Use net if both have it, fall back to gross
+  const useNet = r1?.netScore !== null && r1?.netScore !== undefined && r2?.netScore !== null && r2?.netScore !== undefined;
+  const s1 = r1 ? (useNet ? r1.netScore : (r1.adjustedGross ?? r1.grossScore)) : null;
+  const s2 = r2 ? (useNet ? r2.netScore : (r2.adjustedGross ?? r2.grossScore)) : null;
+  const winner = s1 !== null && s2 !== null
+    ? s1 < s2 ? m.player1Id : s2 < s1 ? m.player2Id : "tie"
     : null;
 
   const renderSide = (player, round, align) => (
@@ -604,9 +606,9 @@ function MatchupCard({ m, state }) {
       {round ? (
         <>
           <div className="mscore" style={{ color: winner === player.id ? "var(--gol)" : "var(--cream)" }}>
-            {round.netScore ?? "—"}
+            {useNet ? round.netScore : (round.adjustedGross ?? round.grossScore)}
           </div>
-          <div className="snet">{round.grossScore} gross · {round.course}</div>
+          <div className="snet">{round.grossScore} gross · {round.course}{!useNet ? " · gross play" : ""}</div>
         </>
       ) : (
         <div className="tm" style={{ marginTop: 4 }}>Awaiting round...</div>
