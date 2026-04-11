@@ -2197,14 +2197,23 @@ function CommLinkRound({ state, fsUpdate }) {
   const [err, setErr]           = useState("");
   const [saving, setSaving]     = useState(false);
 
-  // Unlinked rounds for selected player
-  const unlinkedRounds = rounds.filter(r => r.playerId === playerId && !r.matchupId);
+  // All rounds for selected player
+  const playerRoundsLink = rounds
+    .filter(r => r.playerId === playerId)
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
 
-  // Open matchups for selected player (not yet complete, player hasn't posted)
+  const selectedRoundObj = rounds.find(r => r.id === roundId);
+  const alreadyLinkedIds = selectedRoundObj?.matchupIds || (selectedRoundObj?.matchupId ? [selectedRoundObj.matchupId] : []);
+
+  // Open matchups for selected player that this round isn't already linked to
   const openMatchups = matchups.filter(m => {
     const isPlayer = m.player1Id === playerId || m.player2Id === playerId;
-    const alreadyPosted = rounds.some(r => r.matchupId === m.id && r.playerId === playerId);
-    return isPlayer && !alreadyPosted && m.status !== "complete";
+    const alreadyLinked = alreadyLinkedIds.includes(m.id);
+    const alreadyPostedByOther = rounds.some(r =>
+      r.id !== roundId && r.playerId === playerId &&
+      (r.matchupIds?.includes(m.id) || r.matchupId === m.id)
+    );
+    return isPlayer && !alreadyLinked && !alreadyPostedByOther && m.status !== "complete";
   });
 
   const save = async () => {
@@ -2215,7 +2224,8 @@ function CommLinkRound({ state, fsUpdate }) {
     if (!round) { setErr("Round not found."); setSaving(false); return; }
 
     try {
-      await fsUpdate.updateRound(roundId, { matchupId: selectedLinkIds[0], matchupIds: selectedLinkIds });
+      const mergedIds = [...new Set([...alreadyLinkedIds, ...selectedLinkIds])];
+      await fsUpdate.updateRound(roundId, { matchupId: mergedIds[0], matchupIds: mergedIds });
 
       let resolved = 0;
       for (const mId of selectedLinkIds) {
@@ -2256,7 +2266,7 @@ function CommLinkRound({ state, fsUpdate }) {
       <div className="card">
         <div className="fg mb16">
           <div className="lbl">Player</div>
-          <select value={playerId} onChange={e => { setPlayerId(e.target.value); setRoundId(""); setMatchupId(""); }}>
+          <select value={playerId} onChange={e => { setPlayerId(e.target.value); setRoundId(""); setSelectedLinkIds([]); }}>
             <option value="">— Select player —</option>
             {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -2264,16 +2274,20 @@ function CommLinkRound({ state, fsUpdate }) {
         {playerId && (
           <>
             <div className="fg mb16">
-              <div className="lbl">Unlinked Round</div>
-              {unlinkedRounds.length === 0
-                ? <div className="tm">No unlinked rounds for this player.</div>
-                : <select value={roundId} onChange={e => setRoundId(e.target.value)}>
+              <div className="lbl">Round</div>
+              {playerRoundsLink.length === 0
+                ? <div className="tm">No rounds posted for this player.</div>
+                : <select value={roundId} onChange={e => { setRoundId(e.target.value); setSelectedLinkIds([]); }}>
                     <option value="">— Select round —</option>
-                    {unlinkedRounds.sort((a,b) => new Date(b.date)-new Date(a.date)).map(r => (
-                      <option key={r.id} value={r.id}>
-                        {new Date(r.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} · {r.course} · {r.grossScore} gross{r.netScore !== null ? ` / ${r.netScore} net` : ""}
-                      </option>
-                    ))}
+                    {playerRoundsLink.map(r => {
+                      const linked = r.matchupIds?.length || (r.matchupId ? 1 : 0);
+                      return (
+                        <option key={r.id} value={r.id}>
+                          {new Date(r.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} · {r.course} · {r.grossScore} gross{r.netScore !== null ? ` / ${r.netScore} net` : ""}
+                          {linked ? ` · ${linked} matchup${linked>1?"s":""}` : " · unlinked"}
+                        </option>
+                      );
+                    })}
                   </select>
               }
             </div>
