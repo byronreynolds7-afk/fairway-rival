@@ -38,6 +38,17 @@ function calcCourseHandicap(hcpIndex, slope, courseRating, par = 36) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// RESOLVE HELPER — use net score if available, fall back to gross
+// ─────────────────────────────────────────────────────────────────────────────
+function resolveScores(r1, r2) {
+  // Use net if both have it, otherwise fall back to gross
+  const useNet = r1.netScore !== null && r2.netScore !== null;
+  const s1 = useNet ? r1.netScore : r1.adjustedGross ?? r1.grossScore;
+  const s2 = useNet ? r2.netScore : r2.adjustedGross ?? r2.grossScore;
+  return { s1, s2, useNet };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 const STYLES = `
@@ -1566,10 +1577,13 @@ function PostRound({ state, fsUpdate, cp }) {
       const otherId    = matchup.player1Id === cp.id ? matchup.player2Id : matchup.player1Id;
       const otherRound = state.rounds.find(r => r.playerId === otherId && (r.matchupIds?.includes(mId) || r.matchupId === mId));
       const otherNet   = otherRound ? otherRound.netScore : null;
-      if (otherNet !== null && netScore !== null) {
+      // Use net if available, fall back to gross
+      const myScore    = (netScore !== null) ? netScore : (effectiveGross || 0);
+      const otherScore = (otherNet !== null)  ? otherNet  : (otherRound?.adjustedGross ?? otherRound?.grossScore ?? 0);
+      if (myScore && otherScore) {
         let wId = null, lId = null, tie = false;
-        if (netScore < otherNet)       { wId = cp.id; lId = otherId; }
-        else if (otherNet < netScore)  { wId = otherId; lId = cp.id; }
+        if (myScore < otherScore)      { wId = cp.id; lId = otherId; }
+        else if (otherScore < myScore) { wId = otherId; lId = cp.id; }
         else { tie = true; }
         await fsUpdate.updateMatchup(mId, { status: "complete" });
         const winner = state.players.find(p => p.id === wId);
@@ -2081,10 +2095,14 @@ function CommPostRound({ state, fsUpdate }) {
         if (matchup) {
           const otherId = matchup.player1Id === targetPlayerId ? matchup.player2Id : matchup.player1Id;
           const otherRound = rounds.find(r => r.playerId === otherId && (r.matchupIds?.includes(matchupId) || r.matchupId === matchupId));
-          if (otherRound && netScore !== null && otherRound.netScore !== null) {
+          if (otherRound) {
+            const { s1, s2 } = resolveScores(
+              { netScore, adjustedGross: g, grossScore: rawGross },
+              otherRound
+            );
             let wId = null, lId = null, tie = false;
-            if (netScore < otherRound.netScore) { wId = targetPlayerId; lId = otherId; }
-            else if (otherRound.netScore < netScore) { wId = otherId; lId = targetPlayerId; }
+            if (s1 < s2) { wId = targetPlayerId; lId = otherId; }
+            else if (s2 < s1) { wId = otherId; lId = targetPlayerId; }
             else { tie = true; }
             await fsUpdate.updateMatchup(matchupId, { status: "complete" });
             const winner = players.find(p => p.id === wId);
@@ -2215,12 +2233,11 @@ function CommResolveMatchup({ state, fsUpdate }) {
     if (!r1 && !r2) { setErr("Neither player has a round linked to this matchup."); setSaving(false); return; }
     if (!r1) { setErr(`${p1?.name} hasn't posted a round for this matchup yet.`); setSaving(false); return; }
     if (!r2) { setErr(`${p2?.name} hasn't posted a round for this matchup yet.`); setSaving(false); return; }
-    if (r1.netScore === null || r2.netScore === null) { setErr("One or both players don't have a net score yet (need 3+ rounds for handicap)."); setSaving(false); return; }
-
     try {
+      const { s1, s2, useNet } = resolveScores(r1, r2);
       let wId = null, lId = null, tie = false;
-      if (r1.netScore < r2.netScore)      { wId = p1Id; lId = p2Id; }
-      else if (r2.netScore < r1.netScore) { wId = p2Id; lId = p1Id; }
+      if (s1 < s2)      { wId = p1Id; lId = p2Id; }
+      else if (s2 < s1) { wId = p2Id; lId = p1Id; }
       else { tie = true; }
 
       await fsUpdate.updateMatchup(matchupId, { status: "complete" });
@@ -2234,7 +2251,8 @@ function CommResolveMatchup({ state, fsUpdate }) {
       }
 
       const winnerName = tie ? "Tie" : players.find(p => p.id === wId)?.name;
-      setMsg(`Matchup resolved! ${tie ? "It's a tie." : `${winnerName} wins (${Math.min(r1.netScore,r2.netScore)} vs ${Math.max(r1.netScore,r2.netScore)}).`}`);
+      const scoreType = useNet ? "net" : "gross";
+      setMsg(`Matchup resolved! ${tie ? "It's a tie." : `${winnerName} wins ${Math.min(s1,s2)} vs ${Math.max(s1,s2)} (${scoreType}).`}`);
       setMatchupId("");
     } catch(e) {
       setErr("Failed to resolve. Check connection.");
@@ -2325,10 +2343,11 @@ function CommLinkRound({ state, fsUpdate }) {
         if (!matchup) continue;
         const otherId    = matchup.player1Id === playerId ? matchup.player2Id : matchup.player1Id;
         const otherRound = rounds.find(r => (r.matchupIds?.includes(mId) || r.matchupId === mId) && r.playerId === otherId);
-        if (otherRound && round.netScore !== null && otherRound.netScore !== null) {
+        if (otherRound) {
+          const { s1, s2 } = resolveScores(round, otherRound);
           let wId = null, lId = null, tie = false;
-          if (round.netScore < otherRound.netScore)       { wId = playerId; lId = otherId; }
-          else if (otherRound.netScore < round.netScore)  { wId = otherId;  lId = playerId; }
+          if (s1 < s2)      { wId = playerId; lId = otherId; }
+          else if (s2 < s1) { wId = otherId;  lId = playerId; }
           else { tie = true; }
           await fsUpdate.updateMatchup(mId, { status: "complete" });
           const winner = players.find(p => p.id === wId);
@@ -2471,11 +2490,12 @@ function CommDeleteRound({ state, fsUpdate }) {
           (r.matchupIds?.includes(mId) || r.matchupId === mId)
         );
 
-        if (otherRound && selectedRound.netScore !== null && otherRound.netScore !== null) {
+        if (otherRound) {
+          const { s1, s2 } = resolveScores(selectedRound, otherRound);
           // Figure out who won so we can revert their record
           let wId = null, lId = null, wasTie = false;
-          if (selectedRound.netScore < otherRound.netScore)       { wId = playerId; lId = otherId; }
-          else if (otherRound.netScore < selectedRound.netScore)  { wId = otherId;  lId = playerId; }
+          if (s1 < s2)      { wId = playerId; lId = otherId; }
+          else if (s2 < s1) { wId = otherId;  lId = playerId; }
           else { wasTie = true; }
 
           const winner = players.find(p => p.id === wId);
