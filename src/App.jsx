@@ -1564,8 +1564,8 @@ function PostRound({ state, fsUpdate, cp }) {
       const matchup = state.matchups.find(m => m.id === mId);
       if (!matchup) return;
       const otherId    = matchup.player1Id === cp.id ? matchup.player2Id : matchup.player1Id;
-      const otherRound = state.rounds.find(r => r.matchupIds?.includes(mId) || r.matchupId === mId);
-      const otherNet   = otherRound?.playerId === otherId ? otherRound.netScore : null;
+      const otherRound = state.rounds.find(r => r.playerId === otherId && (r.matchupIds?.includes(mId) || r.matchupId === mId));
+      const otherNet   = otherRound ? otherRound.netScore : null;
       if (otherNet !== null && netScore !== null) {
         let wId = null, lId = null, tie = false;
         if (netScore < otherNet)       { wId = cp.id; lId = otherId; }
@@ -2080,7 +2080,7 @@ function CommPostRound({ state, fsUpdate }) {
         const matchup = matchups.find(m => m.id === matchupId);
         if (matchup) {
           const otherId = matchup.player1Id === targetPlayerId ? matchup.player2Id : matchup.player1Id;
-          const otherRound = rounds.find(r => r.matchupId === matchupId && r.playerId === otherId);
+          const otherRound = rounds.find(r => r.playerId === otherId && (r.matchupIds?.includes(matchupId) || r.matchupId === matchupId));
           if (otherRound && netScore !== null && otherRound.netScore !== null) {
             let wId = null, lId = null, tie = false;
             if (netScore < otherRound.netScore) { wId = targetPlayerId; lId = otherId; }
@@ -2183,6 +2183,98 @@ function CommPostRound({ state, fsUpdate }) {
         {err && <div className="err">{err}</div>}
         {msg && <div className="ok">{msg}</div>}
         <div className="mt16"><button className="btn bp" onClick={submit} disabled={saving}>{saving?"Saving...":"Post Round"}</button></div>
+      </div>
+    </div>
+  );
+}
+
+function CommResolveMatchup({ state, fsUpdate }) {
+  const { players, rounds, matchups } = state;
+  const [matchupId, setMatchupId] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const pendingMatchups = matchups.filter(m => m.status !== "complete");
+
+  const resolve = async () => {
+    setErr(""); setMsg(""); setSaving(true);
+    const matchup = matchups.find(m => m.id === matchupId);
+    if (!matchup) { setErr("Matchup not found."); setSaving(false); return; }
+
+    const p1Id = matchup.player1Id;
+    const p2Id = matchup.player2Id;
+
+    // Find rounds for each player linked to this matchup — check both fields
+    const r1 = rounds.find(r => r.playerId === p1Id && (r.matchupIds?.includes(matchupId) || r.matchupId === matchupId));
+    const r2 = rounds.find(r => r.playerId === p2Id && (r.matchupIds?.includes(matchupId) || r.matchupId === matchupId));
+
+    const p1 = players.find(p => p.id === p1Id);
+    const p2 = players.find(p => p.id === p2Id);
+
+    if (!r1 && !r2) { setErr("Neither player has a round linked to this matchup."); setSaving(false); return; }
+    if (!r1) { setErr(`${p1?.name} hasn't posted a round for this matchup yet.`); setSaving(false); return; }
+    if (!r2) { setErr(`${p2?.name} hasn't posted a round for this matchup yet.`); setSaving(false); return; }
+    if (r1.netScore === null || r2.netScore === null) { setErr("One or both players don't have a net score yet (need 3+ rounds for handicap)."); setSaving(false); return; }
+
+    try {
+      let wId = null, lId = null, tie = false;
+      if (r1.netScore < r2.netScore)      { wId = p1Id; lId = p2Id; }
+      else if (r2.netScore < r1.netScore) { wId = p2Id; lId = p1Id; }
+      else { tie = true; }
+
+      await fsUpdate.updateMatchup(matchupId, { status: "complete" });
+      const winner = players.find(p => p.id === wId);
+      const loser  = players.find(p => p.id === lId);
+      if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
+      if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
+      if (tie) {
+        if (p1) await fsUpdate.updatePlayer(p1Id, { ties: (p1.ties||0)+1 });
+        if (p2) await fsUpdate.updatePlayer(p2Id, { ties: (p2.ties||0)+1 });
+      }
+
+      const winnerName = tie ? "Tie" : players.find(p => p.id === wId)?.name;
+      setMsg(`Matchup resolved! ${tie ? "It's a tie." : `${winnerName} wins (${Math.min(r1.netScore,r2.netScore)} vs ${Math.max(r1.netScore,r2.netScore)}).`}`);
+      setMatchupId("");
+    } catch(e) {
+      setErr("Failed to resolve. Check connection.");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <div className="stitle mt24">Force Resolve Matchup</div>
+      <div className="card">
+        <div className="tm" style={{ marginBottom:12,fontSize:13 }}>
+          Use this if both players have posted rounds but the matchup isn't showing as complete.
+        </div>
+        <div className="fg mb16">
+          <div className="lbl">Pending Matchup</div>
+          {pendingMatchups.length === 0
+            ? <div className="tm">No pending matchups.</div>
+            : <select value={matchupId} onChange={e => { setMatchupId(e.target.value); setMsg(""); setErr(""); }}>
+                <option value="">— Select matchup —</option>
+                {pendingMatchups.map(m => {
+                  const p1 = players.find(p => p.id === m.player1Id);
+                  const p2 = players.find(p => p.id === m.player2Id);
+                  const r1 = rounds.find(r => r.playerId === m.player1Id && (r.matchupIds?.includes(m.id) || r.matchupId === m.id));
+                  const r2 = rounds.find(r => r.playerId === m.player2Id && (r.matchupIds?.includes(m.id) || r.matchupId === m.id));
+                  const status = r1 && r2 ? "✓ Both posted" : r1 || r2 ? "⏳ 1/2 posted" : "○ No rounds";
+                  return (
+                    <option key={m.id} value={m.id}>
+                      {p1?.name} vs {p2?.name}{m.roundDate ? ` · ${new Date(m.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : ""} · {status}
+                    </option>
+                  );
+                })}
+              </select>
+          }
+        </div>
+        {err && <div className="err">{err}</div>}
+        {msg && <div className="ok">{msg}</div>}
+        <button className="btn bp" onClick={resolve} disabled={saving || !matchupId}>
+          {saving ? "Resolving..." : "Resolve Matchup"}
+        </button>
       </div>
     </div>
   );
@@ -2609,6 +2701,7 @@ function Commissioner({ state, fsUpdate }) {
           </div>
         </div>
       ))}
+      <CommResolveMatchup state={state} fsUpdate={fsUpdate} />
       <CommDeleteRound state={state} fsUpdate={fsUpdate} />
       <CommLinkRound state={state} fsUpdate={fsUpdate} />
       <CommPostRound state={state} fsUpdate={fsUpdate} />
