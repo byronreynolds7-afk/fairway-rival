@@ -150,6 +150,7 @@ export default function App() {
   const [challenges, setChallenges] = useState([]);
   const [notifs,     setNotifs]     = useState([]);
   const [season,     setSeason]     = useState(1);
+  const [leagues,    setLeagues]    = useState([]);
   const [tab,        setTab]        = useState("dashboard");
   const [showNotifs, setShowNotifs] = useState(false);
 
@@ -166,11 +167,12 @@ export default function App() {
       onSnapshot(collection(db, "challenges"), snap => setChallenges(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
       onSnapshot(collection(db, "notifs"),     snap => setNotifs(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
       onSnapshot(doc(db, "settings", "global"), snap => { if (snap.exists()) setSeason(snap.data().season || 1); }),
+      onSnapshot(collection(db, "leagues"), snap => setLeagues(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
     ];
     return () => unsubs.forEach(u => u());
   }, [authUser]);
 
-  const state = { players, matchups, rounds, challenges, notifs, season };
+  const state = { players, matchups, rounds, challenges, notifs, season, leagues };
 
   const fsUpdate = {
     addPlayer:    (data)    => setDoc(doc(db, "players", data.id), data),
@@ -192,6 +194,9 @@ export default function App() {
     addNotif:       (data) => setDoc(doc(db, "notifs", data.id), data),
     markNotifRead:  (id)   => updateDoc(doc(db, "notifs", id), { read: true }),
     deleteNotif:    (id)   => deleteDoc(doc(db, "notifs", id)),
+    addLeague:      (data) => setDoc(doc(db, "leagues", data.id), data),
+    updateLeague:   (id, upd) => updateDoc(doc(db, "leagues", id), upd),
+    deleteLeague:   (id)   => deleteDoc(doc(db, "leagues", id)),
   };
 
   const currentPlayer = authUser ? players.find(p => p.firebaseUid === authUser.uid) || null : null;
@@ -204,12 +209,16 @@ export default function App() {
   const myUnread   = myNotifs.length;
   const myPendingChallenges = challenges.filter(c => c.toPlayerId === currentPlayer.id && c.status === "pending");
 
+  const activeLeague = leagues.find(l => l.status === "active");
+  const inLeague = activeLeague && activeLeague.playerIds?.includes(currentPlayer.id);
+
   const navItems = [
     { key: "dashboard", label: "Dashboard" },
     { key: "matchups",  label: "Matchups" },
     { key: "rounds",    label: "Post Round" },
     { key: "standings", label: "Standings" },
     { key: "h2h",       label: "Rivalry" },
+    ...(inLeague ? [{ key: "league", label: "🏆 League" }] : []),
     ...(currentPlayer?.isCommissioner ? [{ key: "comm", label: "⚙ Commish" }] : []),
   ];
 
@@ -222,7 +231,10 @@ export default function App() {
       <style>{STYLES}</style>
       <div className="app">
         <div className="topbar">
-          <div className="logo">FAIR<span>WAY</span> RIVAL</div>
+          <div className="logo" style={{flexDirection:"column",alignItems:"flex-start",gap:0}}>
+            <div>FAIR<span>WAY</span> RIVAL</div>
+            {activeLeague && <div style={{fontSize:11,color:"var(--gold)",letterSpacing:1,fontFamily:"'DM Sans',sans-serif",fontWeight:600,marginTop:-4}}>{activeLeague.name}</div>}
+          </div>
           <nav className="nav">
             {navItems.map(n => (
               <button key={n.key} className={`nb ${tab === n.key ? "active" : ""}`} onClick={() => { setTab(n.key); setShowNotifs(false); }}>
@@ -264,6 +276,7 @@ export default function App() {
           {tab === "standings"  && <Standings state={state} />}
           {tab === "h2h"        && <HeadToHead state={state} cp={currentPlayer} />}
           {tab === "comm" && currentPlayer?.isCommissioner && <Commissioner state={state} fsUpdate={fsUpdate} />}
+          {tab === "league" && inLeague && <LeaguePage state={state} cp={currentPlayer} activeLeague={activeLeague} setTab={setTab} />}
         </div>
       </div>
     </>
@@ -522,39 +535,240 @@ function AuthScreen({ fsUpdate, playerCount }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// LEAGUE HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+function calcLeagueStandings(league, matchups, players) {
+  if (!league) return [];
+  const playerIds = league.playerIds || [];
+  const standings = playerIds.map(pid => {
+    const player = players.find(p => p.id === pid);
+    let w = 0, l = 0, t = 0;
+    matchups.filter(m => m.leagueId === league.id && m.status === "complete" &&
+      (m.player1Id === pid || m.player2Id === pid)
+    ).forEach(m => {
+      if (m.winnerId === pid) w++;
+      else if (m.winnerId === "tie") t++;
+      else if (m.winnerId) l++;
+    });
+    return { id: pid, name: player?.name || "Unknown", w, l, t, points: w*2 + t };
+  });
+  return standings.sort((a,b) => b.points - a.points || b.w - a.w || a.l - b.l);
+}
+
+function generateRoundRobin(playerIds, startDate, windowDays = 14) {
+  const matchups = [];
+  const players = [...playerIds];
+  // Generate all pairs
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i+1; j < players.length; j++) {
+      matchups.push([players[i], players[j]]);
+    }
+  }
+  // Assign windows staggered from start date
+  return matchups.map((pair, idx) => {
+    const windowStart = new Date(startDate);
+    windowStart.setDate(windowStart.getDate() + idx * windowDays);
+    const windowEnd = new Date(windowStart);
+    windowEnd.setDate(windowEnd.getDate() + windowDays);
+    return {
+      player1Id: pair[0],
+      player2Id: pair[1],
+      windowStart: windowStart.toISOString().slice(0,10),
+      roundDate: windowEnd.toISOString().slice(0,10),
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEAGUE PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+function LeaguePage({ state, cp, activeLeague, setTab }) {
+  const { players, matchups, rounds } = state;
+  const standings = calcLeagueStandings(activeLeague, matchups, players);
+
+  const leagueMatchups = matchups
+    .filter(m => m.leagueId === activeLeague.id)
+    .sort((a,b) => new Date(a.roundDate||0) - new Date(b.roundDate||0));
+
+  const pending  = leagueMatchups.filter(m => m.status !== "complete");
+  const complete = leagueMatchups.filter(m => m.status === "complete")
+    .sort((a,b) => new Date(b.roundDate||0) - new Date(a.roundDate||0));
+
+  // Group pending by window
+  const now = new Date();
+  const currentWindow = pending.filter(m => {
+    if (!m.windowStart || !m.roundDate) return true;
+    return new Date(m.windowStart) <= now && now <= new Date(m.roundDate);
+  });
+  const upcomingWindows = pending.filter(m => m.windowStart && new Date(m.windowStart) > now);
+
+  const formatWindow = (m) => {
+    if (!m.windowStart || !m.roundDate) return "";
+    const s = new Date(m.windowStart).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    const e = new Date(m.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    return `${s} – ${e}`;
+  };
+
+  const isPlayoff = activeLeague.phase === "playoff";
+
+  return (
+    <div>
+      <div className="ptitle">{activeLeague.name}</div>
+      <div className="psub">
+        {isPlayoff ? "Double Elimination Playoff" : "Round Robin"} · {activeLeague.format}
+      </div>
+
+      {/* Standings */}
+      <div className="card" style={{marginBottom:16}}>
+        <div className="stitle" style={{marginBottom:12}}>Standings</div>
+        <table className="stbl">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th>W</th>
+              <th>L</th>
+              <th>T</th>
+              <th>Pts</th>
+              <th>HCP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {standings.map((s,i) => {
+              const pl = players.find(p => p.id === s.id);
+              return (
+                <tr key={s.id} style={{background:s.id===cp.id?"rgba(40,179,96,0.06)":""}}>
+                  <td><div className={`rnk ${i===0?"top":""}`}>{i+1}</div></td>
+                  <td><div style={{fontWeight:s.id===cp.id?700:500}}>{s.name}{s.id===cp.id&&<span className="tm" style={{fontSize:11,marginLeft:6}}>(you)</span>}</div></td>
+                  <td style={{color:"var(--gl)",fontWeight:700}}>{s.w}</td>
+                  <td style={{color:"var(--red)"}}>{s.l}</td>
+                  <td style={{color:"var(--muted)"}}>{s.t}</td>
+                  <td><span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:"var(--gold)"}}>{s.points}</span></td>
+                  <td>{pl?.handicapIndex !== null && pl?.handicapIndex !== undefined ? <span className="pill po">{pl.handicapIndex}</span> : <span className="pill pm">{pl?.differentials?.length||0}/3</span>}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Current window */}
+      {currentWindow.length > 0 && (
+        <>
+          <div className="stitle">Current Window</div>
+          {currentWindow.map(m => (
+            <div key={m.id}>
+              {m.windowStart && <div className="tm" style={{fontSize:12,marginBottom:4,marginTop:4}}>📅 {formatWindow(m)}</div>}
+              <MatchupCard m={m} state={state} />
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Upcoming windows */}
+      {upcomingWindows.length > 0 && (
+        <>
+          <div className="stitle mt24">Upcoming</div>
+          {upcomingWindows.map(m => (
+            <div key={m.id}>
+              {m.windowStart && <div className="tm" style={{fontSize:12,marginBottom:4,marginTop:4}}>📅 {formatWindow(m)}</div>}
+              <MatchupCard m={m} state={state} />
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Completed */}
+      {complete.length > 0 && (
+        <>
+          <div className="stitle mt24">Results</div>
+          {complete.map(m => <MatchupCard key={m.id} m={m} state={state} />)}
+        </>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ state, cp, setTab }) {
   if (!cp) return null;
-  const { rounds, matchups, season } = state;
+  const { rounds, matchups, season, leagues } = state;
   const myRounds = rounds.filter(r => r.playerId === cp.id);
+  const activeLeague = leagues?.find(l => l.status === "active");
+  const inLeague = activeLeague?.playerIds?.includes(cp.id);
+
+  // League matchups for current window
+  const now = new Date();
+  const leagueMatchups = inLeague ? matchups.filter(m =>
+    m.leagueId === activeLeague.id &&
+    (m.player1Id === cp.id || m.player2Id === cp.id) &&
+    m.status !== "complete"
+  ) : [];
+
+  // Challenge (non-league) matchups
+  const challengeMatchups = matchups.filter(m =>
+    !m.leagueId &&
+    (m.player1Id === cp.id || m.player2Id === cp.id) &&
+    m.status !== "complete"
+  );
+
+  // Recent completed matchups
   const recentMatchups = matchups
     .filter(m => (m.player1Id === cp.id || m.player2Id === cp.id) && m.status === "complete")
     .sort((a, b) => new Date(b.roundDate || 0) - new Date(a.roundDate || 0))
-    .slice(0, 3);
+    .slice(0, 5);
+
+  // League standings for this player
+  const leaguePoints = inLeague ? calcLeagueStandings(activeLeague, matchups, state.players) : [];
+  const myStanding = leaguePoints.find(s => s.id === cp.id);
+  const myRank = leaguePoints.findIndex(s => s.id === cp.id) + 1;
 
   return (
     <div>
       <div className="ptitle">Welcome back, {cp.name.split(" ")[0]}.</div>
-      <div className="psub">Season {season || 1} · Bi-Weekly Challenge</div>
+      <div className="psub">{inLeague ? activeLeague.name : `Season ${season || 1}`} · Fairway Rival</div>
+
+      {/* Stats row */}
       <div className="srow">
         <div className="sbox">
           <div className={`snum ${cp.handicapIndex !== null ? "gold" : ""}`}>{cp.handicapIndex ?? "—"}</div>
           <div className="slbl">Handicap Index</div>
         </div>
+        {inLeague && myStanding ? (
+          <>
+            <div className="sbox">
+              <div className="snum gold">{myStanding.points}</div>
+              <div className="slbl">League Points</div>
+            </div>
+            <div className="sbox">
+              <div className="snum" style={{color:"var(--gl)"}}>{myRank}</div>
+              <div className="slbl">League Rank</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="sbox">
+              <div className="snum g">{cp.wins || 0}</div>
+              <div className="slbl">Wins</div>
+            </div>
+            <div className="sbox">
+              <div className="snum">{cp.losses || 0}</div>
+              <div className="slbl">Losses</div>
+            </div>
+          </>
+        )}
         <div className="sbox">
-          <div className="snum g">{cp.wins || 0}</div>
-          <div className="slbl">Wins</div>
-        </div>
-        <div className="sbox">
-          <div className="snum">{cp.losses || 0}</div>
-          <div className="slbl">Losses</div>
+          <div className="snum">{cp.ties || 0}</div>
+          <div className="slbl">Ties</div>
         </div>
         <div className="sbox">
           <div className="snum">{myRounds.length}</div>
           <div className="slbl">Rounds</div>
         </div>
       </div>
+
       {cp.handicapIndex === null && (
-        <div className="card card2" style={{ marginBottom: 24 }}>
+        <div className="card card2" style={{ marginBottom: 16 }}>
           <div className="fb">
             <div>
               <div className="lbl">Handicap Status</div>
@@ -569,10 +783,40 @@ function Dashboard({ state, cp, setTab }) {
           </div>
         </div>
       )}
-      <div className="stitle">Recent Results</div>
+
+      {/* League leaderboard */}
+      {inLeague && leaguePoints.length > 0 && (
+        <div className="card" style={{ marginBottom:16 }}>
+          <div className="stitle" style={{marginBottom:12}}>🏆 {activeLeague.name} — Standings</div>
+          {leaguePoints.map((s, i) => (
+            <div key={s.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:i<leaguePoints.length-1?"1px solid var(--border)":"none" }}>
+              <div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:i===0?"var(--gold)":"var(--muted)",width:28,textAlign:"center" }}>{i+1}</div>
+              <div style={{ flex:1,fontWeight:s.id===cp.id?700:500,color:s.id===cp.id?"var(--cream)":"var(--cream)" }}>{s.name}{s.id===cp.id&&<span style={{color:"var(--muted)",fontSize:12,marginLeft:6}}>(you)</span>}</div>
+              <div style={{ display:"flex",gap:16,alignItems:"center" }}>
+                <span className="tm" style={{fontSize:12}}>{s.w}W {s.l}L {s.t}T</span>
+                <div style={{ fontFamily:"'Bebas Neue',sans-serif",fontSize:24,color:"var(--gl)",minWidth:32,textAlign:"right" }}>{s.points}</div>
+                <span className="tm" style={{fontSize:11}}>pts</span>
+              </div>
+            </div>
+          ))}
+          <button className="btn bgh bsm" style={{marginTop:12}} onClick={() => setTab("league")}>Full League View →</button>
+        </div>
+      )}
+
+      {/* Current window matchups */}
+      {(leagueMatchups.length > 0 || challengeMatchups.length > 0) && (
+        <>
+          <div className="stitle">Current Matchups</div>
+          {leagueMatchups.map(m => <MatchupCard key={m.id} m={m} state={state} />)}
+          {challengeMatchups.map(m => <MatchupCard key={m.id} m={m} state={state} />)}
+        </>
+      )}
+
+      {/* Match history */}
+      <div className="stitle mt24">Recent Results</div>
       {recentMatchups.length === 0
         ? <div className="empty">No completed matchups yet. Get out there! ⛳</div>
-        : recentMatchups.map(m => <MatchupCard key={m.id} m={m} state={state} myId={cp.id} />)}
+        : recentMatchups.map(m => <MatchupCard key={m.id} m={m} state={state} />)}
     </div>
   );
 }
@@ -626,6 +870,8 @@ function MatchupCard({ m, state }) {
             {new Date(m.roundDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </div>
         )}
+        {m.leagueId && <div style={{fontSize:9,color:"var(--gold)",letterSpacing:0.5,marginTop:2}}>LEAGUE</div>}
+        {m.format === "Playoff" && <div style={{fontSize:9,color:"var(--gl)",letterSpacing:0.5,marginTop:2}}>PLAYOFF</div>}
       </div>
       {renderSide(p2, r2, "right")}
     </div>
@@ -1346,6 +1592,11 @@ const SOCAL_COURSES = [
     { color:"Middle",  front9:{rating:34.7,slope:122,par:36}, back9:{rating:34.6,slope:122,par:36} },
     { color:"Forward", front9:{rating:33.3,slope:114,par:36}, back9:{rating:33.3,slope:114,par:36} },
   ]},
+  { name:"The Vineyard at Escondido", location:"Escondido, CA", tees:[
+    { color:"Blue",   front9:{rating:35.6,slope:128,par:35}, back9:{rating:35.6,slope:128,par:35} },
+    { color:"White",  front9:{rating:34.5,slope:123,par:35}, back9:{rating:34.5,slope:123,par:35} },
+    { color:"Silver", front9:{rating:32.2,slope:113,par:35}, back9:{rating:32.2,slope:113,par:35} },
+  ]},
   { name:"Rancho Las Palmas CC – North/South", location:"Rancho Mirage, CA", tees:[
     { color:"Black", front9:{rating:34.9,slope:124,par:36}, back9:{rating:34.9,slope:124,par:35} },
     { color:"Blue",  front9:{rating:34.2,slope:121,par:36}, back9:{rating:34.2,slope:121,par:35} },
@@ -1814,23 +2065,46 @@ function Standings({ state }) {
       <div className="ptitle">Season Standings</div>
       <div className="psub">Season {season||1} · Win-Loss Record</div>
       <div className="card">
-        <table className="stbl">
-          <thead><tr><th>#</th><th>Player</th><th>W</th><th>L</th><th>T</th><th>Handicap</th><th>Rounds</th></tr></thead>
-          <tbody>
-            {sorted.map((pl,i) => (
-              <tr key={pl.id}>
-                <td><div className={`rnk ${i===0&&(pl.wins||0)>0?"top":""}`}>{i+1}</div></td>
-                <td><div style={{ fontWeight:600 }}>{pl.name}</div>{pl.isCommissioner&&<span className="pill po" style={{ marginTop:2 }}>Commish</span>}</td>
-                <td style={{ color:"var(--gl)",fontWeight:700 }}>{pl.wins||0}</td>
-                <td style={{ color:"var(--red)" }}>{pl.losses||0}</td>
-                <td style={{ color:"var(--muted)" }}>{pl.ties||0}</td>
-                <td>{pl.handicapIndex!==null?<span className="pill po">{pl.handicapIndex}</span>:<span className="pill pm">{pl.differentials?.length||0}/3</span>}</td>
-                <td className="tm">{pl.differentials?.length||0}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {sorted.length===0&&<div className="empty">No players yet.</div>}
+        {(() => {
+          const activeLeague = state.leagues?.find(l => l.status === "active");
+          const ls = activeLeague ? calcLeagueStandings(activeLeague, matchups, players) : null;
+          const rows = ls || sorted;
+          return (
+            <>
+              <table className="stbl">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Player</th><th>W</th><th>L</th><th>T</th>
+                    {ls && <th>Pts</th>}
+                    <th>Handicap</th><th>Rounds</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row,i) => {
+                    const pl = ls ? players.find(p => p.id === row.id) : row;
+                    if (!pl) return null;
+                    const w = ls ? row.w : (pl.wins||0);
+                    const l = ls ? row.l : (pl.losses||0);
+                    const t = ls ? row.t : (pl.ties||0);
+                    return (
+                      <tr key={pl.id}>
+                        <td><div className={`rnk ${i===0?"top":""}`}>{i+1}</div></td>
+                        <td><div style={{fontWeight:600}}>{pl.name}</div>{pl.isCommissioner&&<span className="pill po" style={{marginTop:2}}>Commish</span>}</td>
+                        <td style={{color:"var(--gl)",fontWeight:700}}>{w}</td>
+                        <td style={{color:"var(--red)"}}>{l}</td>
+                        <td style={{color:"var(--muted)"}}>{t}</td>
+                        {ls && <td><span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:"var(--gold)"}}>{row.points}</span></td>}
+                        <td>{pl.handicapIndex!==null?<span className="pill po">{pl.handicapIndex}</span>:<span className="pill pm">{pl.differentials?.length||0}/3</span>}</td>
+                        <td className="tm">{pl.differentials?.length||0}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {rows.length===0&&<div className="empty">No players yet.</div>}
+            </>
+          );
+        })()}
       </div>
       {completed.length>0&&<><div className="stitle mt24">All Results</div>{completed.map(m=><MatchupCard key={m.id} m={m} state={state} />)}</>}
     </div>
@@ -2727,6 +3001,196 @@ function Commissioner({ state, fsUpdate }) {
       <CommDeleteRound state={state} fsUpdate={fsUpdate} />
       <CommLinkRound state={state} fsUpdate={fsUpdate} />
       <CommPostRound state={state} fsUpdate={fsUpdate} />
+      <CommLeagueManager state={state} fsUpdate={fsUpdate} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMISSIONER LEAGUE MANAGER
+// ─────────────────────────────────────────────────────────────────────────────
+function CommLeagueManager({ state, fsUpdate }) {
+  const { players, matchups, leagues } = state;
+  const activeLeague = leagues?.find(l => l.status === "active");
+
+  const [lName, setLName]       = useState("");
+  const [lFormat, setLFormat]   = useState("Round Robin");
+  const [lStart, setLStart]     = useState("");
+  const [lPlayerIds, setLPlayerIds] = useState([]);
+  const [msg, setMsg]           = useState("");
+  const [err, setErr]           = useState("");
+  const [saving, setSaving]     = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+
+  const togglePlayer = (id) => setLPlayerIds(prev =>
+    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  );
+
+  const createLeague = async () => {
+    setErr(""); setMsg(""); setSaving(true);
+    if (!lName.trim()) { setErr("Enter a league name."); setSaving(false); return; }
+    if (lPlayerIds.length < 2) { setErr("Select at least 2 players."); setSaving(false); return; }
+    if (!lStart) { setErr("Set a start date."); setSaving(false); return; }
+    if (activeLeague) { setErr("An active league already exists. End it before creating a new one."); setSaving(false); return; }
+
+    try {
+      const leagueId = uid();
+      // Generate matchups
+      const pairs = generateRoundRobin(lPlayerIds, lStart, 14);
+      for (const pair of pairs) {
+        const mId = uid();
+        await fsUpdate.addMatchup({
+          id: mId, leagueId,
+          season: state.season || 1,
+          player1Id: pair.player1Id,
+          player2Id: pair.player2Id,
+          roundDate: pair.roundDate,
+          windowStart: pair.windowStart,
+          status: "pending",
+          format: lFormat,
+        });
+      }
+      await fsUpdate.addLeague({
+        id: leagueId,
+        name: lName.trim(),
+        format: lFormat,
+        playerIds: lPlayerIds,
+        startDate: lStart,
+        status: "active",
+        phase: "roundrobin",
+        createdAt: new Date().toISOString(),
+      });
+      setMsg(`League "${lName}" created with ${pairs.length} matchups!`);
+      setLName(""); setLPlayerIds([]); setLStart("");
+    } catch(e) {
+      setErr("Failed to create league. Check connection.");
+    }
+    setSaving(false);
+  };
+
+  const endLeague = async () => {
+    if (!activeLeague) return;
+    setSaving(true);
+    try {
+      await fsUpdate.updateLeague(activeLeague.id, { status: "complete" });
+      setMsg("League ended.");
+      setConfirmEnd(false);
+    } catch(e) { setErr("Failed to end league."); }
+    setSaving(false);
+  };
+
+  const startPlayoffs = async () => {
+    if (!activeLeague) return;
+    setSaving(true);
+    try {
+      // Seed playoff bracket from standings
+      const standings = calcLeagueStandings(activeLeague, matchups, players);
+      const seeds = standings.slice(0, Math.min(4, standings.length));
+      // Double elim first round: 1v4, 2v3
+      const pairs = [];
+      if (seeds.length >= 2) pairs.push([seeds[0].id, seeds[seeds.length-1].id]);
+      if (seeds.length >= 4) pairs.push([seeds[1].id, seeds[2].id]);
+      else if (seeds.length === 3) pairs.push([seeds[1].id, seeds[2].id]);
+
+      const startDate = new Date().toISOString().slice(0,10);
+      for (const pair of pairs) {
+        const mId = uid();
+        const end = new Date(); end.setDate(end.getDate()+14);
+        await fsUpdate.addMatchup({
+          id: mId, leagueId: activeLeague.id,
+          season: state.season || 1,
+          player1Id: pair[0], player2Id: pair[1],
+          roundDate: end.toISOString().slice(0,10),
+          windowStart: startDate,
+          status: "pending", format: "Playoff",
+          playoffRound: 1,
+        });
+      }
+      await fsUpdate.updateLeague(activeLeague.id, { phase: "playoff" });
+      setMsg(`Playoff bracket created with ${pairs.length} first-round matchups!`);
+    } catch(e) { setErr("Failed to start playoffs."); }
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <div className="stitle mt24">League Management</div>
+      {activeLeague ? (
+        <div className="card">
+          <div className="fb" style={{marginBottom:12}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:16}}>{activeLeague.name}</div>
+              <div className="tm">{activeLeague.format} · {activeLeague.phase === "playoff" ? "🏆 Playoffs" : "Round Robin"} · {activeLeague.playerIds?.length} players</div>
+            </div>
+            <span className="pill pg">Active</span>
+          </div>
+          {err && <div className="err">{err}</div>}
+          {msg && <div className="ok">{msg}</div>}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:8}}>
+            {activeLeague.phase === "roundrobin" && (
+              <button className="btn bg_" onClick={startPlayoffs} disabled={saving}>🏆 Start Playoffs</button>
+            )}
+            {!confirmEnd
+              ? <button className="btn bd" onClick={() => setConfirmEnd(true)}>End League</button>
+              : <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{color:"var(--red)",fontSize:13}}>Are you sure?</span>
+                  <button className="btn bd bsm" onClick={endLeague} disabled={saving}>Yes, End</button>
+                  <button className="btn bgh bsm" onClick={() => setConfirmEnd(false)}>Cancel</button>
+                </div>
+            }
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="lbl" style={{marginBottom:12}}>Create New League</div>
+          <div className="fg mb16">
+            <div className="lbl">League Name</div>
+            <input value={lName} onChange={e=>setLName(e.target.value)} placeholder="Fairway Rival 2026" />
+          </div>
+          <div className="fr mb16">
+            <div className="fg">
+              <div className="lbl">Format</div>
+              <select value={lFormat} onChange={e=>setLFormat(e.target.value)}>
+                <option>Round Robin</option>
+                <option>Custom</option>
+              </select>
+            </div>
+            <div className="fg">
+              <div className="lbl">Start Date</div>
+              <input type="date" value={lStart} onChange={e=>setLStart(e.target.value)} />
+            </div>
+          </div>
+          <div className="mb16">
+            <div className="lbl" style={{marginBottom:8}}>Players</div>
+            <div className="tm" style={{marginBottom:8,fontSize:12}}>Select players for the league (2–8)</div>
+            {players.map(p => {
+              const checked = lPlayerIds.includes(p.id);
+              return (
+                <div key={p.id} onClick={() => togglePlayer(p.id)}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",marginBottom:6,borderRadius:8,border:`1px solid ${checked?"var(--gl)":"var(--border)"}`,background:checked?"rgba(40,179,96,0.08)":"var(--deep)",cursor:"pointer"}}>
+                  <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked?"var(--gl)":"var(--muted)"}`,background:checked?"var(--gl)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    {checked && <span style={{color:"var(--deep)",fontSize:12,fontWeight:700}}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:14}}>{p.name}</div>
+                    <div className="tm" style={{fontSize:12}}>HCP: {p.handicapIndex ?? "pending"}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {lPlayerIds.length >= 2 && lFormat === "Round Robin" && (
+            <div className="tm" style={{marginBottom:12,fontSize:12}}>
+              Will generate {(lPlayerIds.length * (lPlayerIds.length-1)) / 2} matchups with 2-week windows staggered from start date.
+            </div>
+          )}
+          {err && <div className="err">{err}</div>}
+          {msg && <div className="ok">{msg}</div>}
+          <button className="btn bp" onClick={createLeague} disabled={saving || lPlayerIds.length < 2 || !lName || !lStart}>
+            {saving ? "Creating..." : "Create League"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
