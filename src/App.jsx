@@ -3009,6 +3009,7 @@ function Commissioner({ state, fsUpdate }) {
         </div>
       ))}
       <CommResolveMatchup state={state} fsUpdate={fsUpdate} />
+      <CommReclassifyResults state={state} fsUpdate={fsUpdate} />
       <CommDeleteRound state={state} fsUpdate={fsUpdate} />
       <CommLinkRound state={state} fsUpdate={fsUpdate} />
       <CommPostRound state={state} fsUpdate={fsUpdate} />
@@ -3020,6 +3021,130 @@ function Commissioner({ state, fsUpdate }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // COMMISSIONER LEAGUE MANAGER
 // ─────────────────────────────────────────────────────────────────────────────
+function CommReclassifyResults({ state, fsUpdate }) {
+  const { players, matchups, rounds } = state;
+  const [msg, setMsg]     = useState("");
+  const [err, setErr]     = useState("");
+  const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState(null);
+
+  // Find all completed matchups where result was recorded as net W/L
+  // but one or both players had no handicap at the time of their round
+  const findMisclassified = () => {
+    const issues = [];
+    const completed = matchups.filter(m => m.status === "complete");
+    for (const m of completed) {
+      const r1 = rounds.find(r => r.playerId === m.player1Id && (r.matchupIds?.includes(m.id) || r.matchupId === m.id));
+      const r2 = rounds.find(r => r.playerId === m.player2Id && (r.matchupIds?.includes(m.id) || r.matchupId === m.id));
+      if (!r1 || !r2) continue;
+      // If either round has null netScore it was gross play
+      const wasGross = r1.netScore === null || r2.netScore === null;
+      if (!wasGross) continue;
+      // Check if it was incorrectly recorded to net W/L
+      // We detect this by seeing if it would have updated wins/losses
+      const { s1, s2, useNet } = resolveScores(r1, r2);
+      if (useNet) continue; // correctly classified already
+      const p1 = players.find(p => p.id === m.player1Id);
+      const p2 = players.find(p => p.id === m.player2Id);
+      issues.push({ m, r1, r2, s1, s2, p1, p2 });
+    }
+    return issues;
+  };
+
+  const runPreview = () => {
+    const issues = findMisclassified();
+    setPreview(issues);
+  };
+
+  const reclassify = async () => {
+    setSaving(true); setErr(""); setMsg("");
+    const issues = findMisclassified();
+    if (issues.length === 0) { setMsg("Nothing to reclassify — all results look correct."); setSaving(false); return; }
+
+    try {
+      for (const { m, r1, r2, s1, s2, p1, p2 } of issues) {
+        // Determine who won
+        let wId = null, lId = null, tie = false;
+        if (s1 < s2)      { wId = m.player1Id; lId = m.player2Id; }
+        else if (s2 < s1) { wId = m.player2Id; lId = m.player1Id; }
+        else { tie = true; }
+
+        // Remove from net record
+        if (tie) {
+          if (p1) await fsUpdate.updatePlayer(p1.id, { ties: Math.max(0,(p1.ties||0)-1) });
+          if (p2) await fsUpdate.updatePlayer(p2.id, { ties: Math.max(0,(p2.ties||0)-1) });
+        } else {
+          const winner = players.find(p => p.id === wId);
+          const loser  = players.find(p => p.id === lId);
+          if (winner) await fsUpdate.updatePlayer(wId, { wins: Math.max(0,(winner.wins||0)-1) });
+          if (loser)  await fsUpdate.updatePlayer(lId, { losses: Math.max(0,(loser.losses||0)-1) });
+        }
+
+        // Add to gross record
+        // Re-fetch updated player data
+        const updP1 = players.find(p => p.id === m.player1Id);
+        const updP2 = players.find(p => p.id === m.player2Id);
+        if (tie) {
+          if (updP1) await fsUpdate.updatePlayer(p1.id, { grossTies: (updP1.grossTies||0)+1 });
+          if (updP2) await fsUpdate.updatePlayer(p2.id, { grossTies: (updP2.grossTies||0)+1 });
+        } else {
+          const w = players.find(p => p.id === wId);
+          const l = players.find(p => p.id === lId);
+          if (w) await fsUpdate.updatePlayer(wId, { grossWins: (w.grossWins||0)+1 });
+          if (l) await fsUpdate.updatePlayer(lId, { grossLosses: (l.grossLosses||0)+1 });
+        }
+      }
+      setMsg(`Reclassified ${issues.length} matchup${issues.length>1?"s":""}. Gross records updated, net records corrected.`);
+      setPreview(null);
+    } catch(e) {
+      setErr("Failed to reclassify. Check connection.");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <div className="stitle mt24">Reclassify Pre-Handicap Results</div>
+      <div className="card">
+        <div className="tm" style={{marginBottom:12,fontSize:13}}>
+          Finds completed matchups where one or both players had no handicap index, and moves those results from the net W/L record to the gross record where they belong.
+        </div>
+        {!preview ? (
+          <button className="btn bgh" onClick={runPreview}>Preview Changes</button>
+        ) : preview.length === 0 ? (
+          <div className="ok">All results are correctly classified — nothing to change.</div>
+        ) : (
+          <>
+            <div className="lbl" style={{marginBottom:8}}>{preview.length} matchup{preview.length>1?"s":""} to reclassify:</div>
+            {preview.map(({m, p1, p2, s1, s2}) => {
+              const winner = s1 < s2 ? p1 : s2 < s1 ? p2 : null;
+              return (
+                <div key={m.id} className="csm" style={{marginBottom:8}}>
+                  <div style={{fontWeight:600}}>{p1?.name} vs {p2?.name}</div>
+                  <div className="tm" style={{fontSize:12}}>
+                    {s1} vs {s2} gross · {winner ? `${winner.name} wins` : "Tie"}
+                    {m.roundDate && ` · ${new Date(m.roundDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`}
+                  </div>
+                  <div style={{fontSize:11,color:"var(--gold)",marginTop:2}}>→ Move from net W/L to gross record</div>
+                </div>
+              );
+            })}
+            {err && <div className="err">{err}</div>}
+            {msg && <div className="ok">{msg}</div>}
+            <div style={{display:"flex",gap:8,marginTop:12}}>
+              <button className="btn bp" onClick={reclassify} disabled={saving}>
+                {saving ? "Reclassifying..." : "Apply Changes"}
+              </button>
+              <button className="btn bgh" onClick={() => setPreview(null)}>Cancel</button>
+            </div>
+          </>
+        )}
+        {!preview && msg && <div className="ok mt8">{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
 function CommLeagueManager({ state, fsUpdate }) {
   const { players, matchups, leagues } = state;
   const activeLeague = leagues?.find(l => l.status === "active");
