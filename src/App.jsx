@@ -49,6 +49,38 @@ function resolveScores(r1, r2) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// APPLY RESULT HELPER
+// If both players had handicap indexes at time of round → real W/L record
+// Otherwise → grossWins/grossLosses only (pre-handicap, doesn't count)
+// ─────────────────────────────────────────────────────────────────────────────
+async function applyResult({ wId, lId, tie, useNet, players, fsUpdate, p1Id, p2Id }) {
+  const ids = tie ? [p1Id, p2Id] : [wId, lId];
+  for (const id of ids) {
+    const pl = players.find(p => p.id === id);
+    if (!pl) continue;
+    if (useNet) {
+      // Both had handicaps — count toward real record
+      if (tie) {
+        await fsUpdate.updatePlayer(id, { ties: (pl.ties||0)+1 });
+      } else if (id === wId) {
+        await fsUpdate.updatePlayer(id, { wins: (pl.wins||0)+1 });
+      } else {
+        await fsUpdate.updatePlayer(id, { losses: (pl.losses||0)+1 });
+      }
+    } else {
+      // Pre-handicap — count toward gross record only
+      if (tie) {
+        await fsUpdate.updatePlayer(id, { grossTies: (pl.grossTies||0)+1 });
+      } else if (id === wId) {
+        await fsUpdate.updatePlayer(id, { grossWins: (pl.grossWins||0)+1 });
+      } else {
+        await fsUpdate.updatePlayer(id, { grossLosses: (pl.grossLosses||0)+1 });
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 const STYLES = `
@@ -749,11 +781,11 @@ function Dashboard({ state, cp, setTab }) {
           <>
             <div className="sbox">
               <div className="snum g">{cp.wins || 0}</div>
-              <div className="slbl">Wins</div>
+              <div className="slbl">Net Wins</div>
             </div>
             <div className="sbox">
               <div className="snum">{cp.losses || 0}</div>
-              <div className="slbl">Losses</div>
+              <div className="slbl">Net Losses</div>
             </div>
           </>
         )}
@@ -761,6 +793,12 @@ function Dashboard({ state, cp, setTab }) {
           <div className="snum">{cp.ties || 0}</div>
           <div className="slbl">Ties</div>
         </div>
+        {(cp.grossWins || cp.grossLosses) ? (
+          <div className="sbox" style={{borderColor:"rgba(201,151,58,0.2)"}}>
+            <div className="snum" style={{fontSize:22,color:"var(--muted)"}}>{cp.grossWins||0}-{cp.grossLosses||0}</div>
+            <div className="slbl" style={{color:"var(--muted)"}}>Gross W-L</div>
+          </div>
+        ) : null}
         <div className="sbox">
           <div className="snum">{myRounds.length}</div>
           <div className="slbl">Rounds</div>
@@ -852,7 +890,8 @@ function MatchupCard({ m, state }) {
           <div className="mscore" style={{ color: winner === player.id ? "var(--gol)" : "var(--cream)" }}>
             {useNet ? round.netScore : (round.adjustedGross ?? round.grossScore)}
           </div>
-          <div className="snet">{round.grossScore} gross · {round.course}{!useNet ? " · gross play" : ""}</div>
+          <div className="snet">{round.grossScore} gross · {round.course}</div>
+          {!useNet && <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>pre-handicap · gross only</div>}
         </>
       ) : (
         <div className="tm" style={{ marginTop: 4 }}>Awaiting round...</div>
@@ -1839,16 +1878,7 @@ function PostRound({ state, fsUpdate, cp }) {
         else if (otherScore < myScore) { wId = otherId; lId = cp.id; }
         else { tie = true; }
         await fsUpdate.updateMatchup(mId, { status: "complete" });
-        const winner = state.players.find(p => p.id === wId);
-        const loser  = state.players.find(p => p.id === lId);
-        if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
-        if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
-        if (tie) {
-          const pl1 = state.players.find(p => p.id === cp.id);
-          const pl2 = state.players.find(p => p.id === otherId);
-          if (pl1) await fsUpdate.updatePlayer(cp.id,   { ties: (pl1.ties||0)+1 });
-          if (pl2) await fsUpdate.updatePlayer(otherId, { ties: (pl2.ties||0)+1 });
-        }
+        await applyResult({ wId, lId, tie, useNet, players: state.players, fsUpdate, p1Id: cp.id, p2Id: otherId });
       }
     };
 
@@ -2076,7 +2106,7 @@ function Standings({ state }) {
                   <tr>
                     <th>#</th><th>Player</th><th>W</th><th>L</th><th>T</th>
                     {ls && <th>Pts</th>}
-                    <th>Handicap</th><th>Rounds</th>
+                    <th>Gross</th><th>Handicap</th><th>Rounds</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2094,6 +2124,7 @@ function Standings({ state }) {
                         <td style={{color:"var(--red)"}}>{l}</td>
                         <td style={{color:"var(--muted)"}}>{t}</td>
                         {ls && <td><span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:"var(--gold)"}}>{row.points}</span></td>}
+                        <td className="tm" style={{fontSize:12}}>{(pl.grossWins||0)>0||(pl.grossLosses||0)>0 ? `${pl.grossWins||0}-${pl.grossLosses||0}` : "—"}</td>
                         <td>{pl.handicapIndex!==null?<span className="pill po">{pl.handicapIndex}</span>:<span className="pill pm">{pl.differentials?.length||0}/3</span>}</td>
                         <td className="tm">{pl.differentials?.length||0}</td>
                       </tr>
@@ -2381,16 +2412,7 @@ function CommPostRound({ state, fsUpdate }) {
             else if (s2 < s1) { wId = otherId; lId = targetPlayerId; }
             else { tie = true; }
             await fsUpdate.updateMatchup(matchupId, { status: "complete" });
-            const winner = players.find(p => p.id === wId);
-            const loser  = players.find(p => p.id === lId);
-            if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
-            if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
-            if (tie) {
-              const pl1 = players.find(p => p.id === targetPlayerId);
-              const pl2 = players.find(p => p.id === otherId);
-              if (pl1) await fsUpdate.updatePlayer(targetPlayerId, { ties: (pl1.ties||0)+1 });
-              if (pl2) await fsUpdate.updatePlayer(otherId, { ties: (pl2.ties||0)+1 });
-            }
+            await applyResult({ wId, lId, tie, useNet, players, fsUpdate, p1Id: targetPlayerId, p2Id: otherId });
           }
         }
       }
@@ -2517,14 +2539,7 @@ function CommResolveMatchup({ state, fsUpdate }) {
       else { tie = true; }
 
       await fsUpdate.updateMatchup(matchupId, { status: "complete" });
-      const winner = players.find(p => p.id === wId);
-      const loser  = players.find(p => p.id === lId);
-      if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
-      if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
-      if (tie) {
-        if (p1) await fsUpdate.updatePlayer(p1Id, { ties: (p1.ties||0)+1 });
-        if (p2) await fsUpdate.updatePlayer(p2Id, { ties: (p2.ties||0)+1 });
-      }
+      await applyResult({ wId, lId, tie, useNet, players, fsUpdate, p1Id, p2Id });
 
       const winnerName = tie ? "Tie" : players.find(p => p.id === wId)?.name;
       const scoreType = useNet ? "net" : "gross";
@@ -2628,14 +2643,7 @@ function CommLinkRound({ state, fsUpdate }) {
           await fsUpdate.updateMatchup(mId, { status: "complete" });
           const winner = players.find(p => p.id === wId);
           const loser  = players.find(p => p.id === lId);
-          if (winner) await fsUpdate.updatePlayer(wId, { wins: (winner.wins||0)+1 });
-          if (loser)  await fsUpdate.updatePlayer(lId, { losses: (loser.losses||0)+1 });
-          if (tie) {
-            const pl1 = players.find(p => p.id === playerId);
-            const pl2 = players.find(p => p.id === otherId);
-            if (pl1) await fsUpdate.updatePlayer(playerId, { ties: (pl1.ties||0)+1 });
-            if (pl2) await fsUpdate.updatePlayer(otherId,  { ties: (pl2.ties||0)+1 });
-          }
+          await applyResult({ wId, lId, tie, useNet, players, fsUpdate, p1Id: playerId, p2Id: otherId });
           resolved++;
         }
       }
@@ -2767,22 +2775,25 @@ function CommDeleteRound({ state, fsUpdate }) {
         );
 
         if (otherRound) {
-          const { s1, s2 } = resolveScores(selectedRound, otherRound);
+          const { s1, s2, useNet: wasNet } = resolveScores(selectedRound, otherRound);
           // Figure out who won so we can revert their record
           let wId = null, lId = null, wasTie = false;
           if (s1 < s2)      { wId = playerId; lId = otherId; }
           else if (s2 < s1) { wId = otherId;  lId = playerId; }
           else { wasTie = true; }
 
-          const winner = players.find(p => p.id === wId);
-          const loser  = players.find(p => p.id === lId);
-          if (winner) await fsUpdate.updatePlayer(wId, { wins: Math.max(0,(winner.wins||0)-1) });
-          if (loser)  await fsUpdate.updatePlayer(lId, { losses: Math.max(0,(loser.losses||0)-1) });
-          if (wasTie) {
-            const pl1 = players.find(p => p.id === playerId);
-            const pl2 = players.find(p => p.id === otherId);
-            if (pl1) await fsUpdate.updatePlayer(playerId, { ties: Math.max(0,(pl1.ties||0)-1) });
-            if (pl2) await fsUpdate.updatePlayer(otherId,  { ties: Math.max(0,(pl2.ties||0)-1) });
+          for (const id of [playerId, otherId]) {
+            const pl = players.find(p => p.id === id);
+            if (!pl) continue;
+            if (wasNet) {
+              if (wasTie) await fsUpdate.updatePlayer(id, { ties: Math.max(0,(pl.ties||0)-1) });
+              else if (id === wId) await fsUpdate.updatePlayer(id, { wins: Math.max(0,(pl.wins||0)-1) });
+              else await fsUpdate.updatePlayer(id, { losses: Math.max(0,(pl.losses||0)-1) });
+            } else {
+              if (wasTie) await fsUpdate.updatePlayer(id, { grossTies: Math.max(0,(pl.grossTies||0)-1) });
+              else if (id === wId) await fsUpdate.updatePlayer(id, { grossWins: Math.max(0,(pl.grossWins||0)-1) });
+              else await fsUpdate.updatePlayer(id, { grossLosses: Math.max(0,(pl.grossLosses||0)-1) });
+            }
           }
         }
       }
