@@ -301,6 +301,13 @@ export default function App() {
           />
         )}
 
+        {/* Action banner */}
+        <ActionBanner
+          state={state} cp={currentPlayer}
+          onOpenNotifs={() => setShowNotifs(true)}
+          setTab={setTab}
+        />
+
         <div className="page">
           {tab === "dashboard"  && <Dashboard state={state} cp={currentPlayer} setTab={setTab} />}
           {tab === "matchups"   && <Matchups state={state} cp={currentPlayer} fsUpdate={fsUpdate} />}
@@ -315,6 +322,105 @@ export default function App() {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTION BANNER
+// ─────────────────────────────────────────────────────────────────────────────
+function ActionBanner({ state, cp, onOpenNotifs, setTab }) {
+  const [dismissed, setDismissed] = useState(null);
+  const { matchups, rounds, challenges, notifs, players } = state;
+
+  // Priority 1: Pending challenges
+  const pendingChallenges = challenges.filter(c => c.toPlayerId === cp.id && c.status === "pending");
+
+  // Priority 2: Matchup windows closing within 3 days
+  const urgentMatchups = matchups.filter(m => {
+    const isMe = m.player1Id === cp.id || m.player2Id === cp.id;
+    const posted = rounds.some(r => r.playerId === cp.id && (r.matchupIds?.includes(m.id) || r.matchupId === m.id));
+    if (!isMe || posted || m.status === "complete" || !m.roundDate) return false;
+    const daysLeft = Math.ceil((new Date(m.roundDate) - new Date()) / (1000*60*60*24));
+    return daysLeft <= 3 && daysLeft >= 0;
+  });
+
+  // Priority 3: Unread result notifications
+  const resultNotifs = notifs.filter(n =>
+    n.toPlayerId === cp.id && !n.read &&
+    (n.type === "challenge_accepted" || n.type === "challenge_declined")
+  );
+
+  // Build the banner to show — highest priority first
+  let banner = null;
+
+  if (pendingChallenges.length > 0 && dismissed !== "challenge") {
+    const c = pendingChallenges[0];
+    const from = players.find(p => p.id === c.fromPlayerId);
+    banner = {
+      key: "challenge",
+      bg: "linear-gradient(90deg, #8b6914, #c9973a)",
+      icon: "⚔",
+      text: `${from?.name || "Someone"} challenged you!`,
+      sub: pendingChallenges.length > 1 ? `+${pendingChallenges.length - 1} more challenge${pendingChallenges.length > 2 ? "s" : ""}` : "Tap to respond",
+      action: () => { onOpenNotifs(); },
+      actionLabel: "View",
+    };
+  } else if (urgentMatchups.length > 0 && dismissed !== "urgent") {
+    const m = urgentMatchups[0];
+    const opp = players.find(p => p.id !== cp.id && (p.id === m.player1Id || p.id === m.player2Id));
+    const daysLeft = Math.ceil((new Date(m.roundDate) - new Date()) / (1000*60*60*24));
+    const isToday = daysLeft === 0;
+    banner = {
+      key: "urgent",
+      bg: isToday ? "linear-gradient(90deg, #7a1a1a, #d95050)" : "linear-gradient(90deg, #1a4a2a, #28b360)",
+      icon: "⏰",
+      text: isToday ? `Last day! Round vs ${opp?.name} due today` : `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left — vs ${opp?.name}`,
+      sub: urgentMatchups.length > 1 ? `+${urgentMatchups.length - 1} more window${urgentMatchups.length > 2 ? "s" : ""} closing soon` : "Post your round",
+      action: () => setTab("rounds"),
+      actionLabel: "Post Round",
+    };
+  } else if (resultNotifs.length > 0 && dismissed !== "result") {
+    const n = resultNotifs[0];
+    banner = {
+      key: "result",
+      bg: "linear-gradient(90deg, #0d3020, #1a6040)",
+      icon: "📊",
+      text: n.message,
+      sub: resultNotifs.length > 1 ? `+${resultNotifs.length - 1} more notification${resultNotifs.length > 2 ? "s" : ""}` : "Tap to view",
+      action: () => onOpenNotifs(),
+      actionLabel: "View",
+    };
+  }
+
+  if (!banner) return null;
+
+  return (
+    <div style={{
+      background: banner.bg,
+      padding: "10px 16px",
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      position: "relative",
+    }}>
+      <div style={{ fontSize: 20, flexShrink: 0 }}>{banner.icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: "#fff", lineHeight: 1.3 }}>{banner.text}</div>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{banner.sub}</div>
+      </div>
+      <button
+        onClick={banner.action}
+        style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.4)", color: "#fff", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0, fontFamily: "'DM Sans',sans-serif" }}
+      >
+        {banner.actionLabel}
+      </button>
+      <button
+        onClick={() => setDismissed(banner.key)}
+        style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", fontSize: 18, cursor: "pointer", flexShrink: 0, lineHeight: 1, fontFamily: "'DM Sans',sans-serif" }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATION DRAWER
